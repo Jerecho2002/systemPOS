@@ -1,0 +1,29 @@
+Localize the website:
+
+On Windows:
+Go to Windows Defender Firewall
+Click "Advanced settings"
+Add a new Inbound Rule:
+Port
+TCP
+Port 8000
+Allow the connection
+Apply to all profiles
+Name it something like LaravelDev
+
+Start Laravel with --host=0.0.0.0
+By default, it binds to 127.0.0.1 (localhost only), so other devices can't reach it.
+
+Laravel command:
+php artisan serve --host=0.0.0.0 --port=8000
+
+search http:
+http://localhost:8000
+
+plain PHP command:
+php -S 0.0.0.0:8000
+
+search http:
+ipconfig
+http://(ip address from ipconfig):8000
+example - http://192.168.1.11:8000
