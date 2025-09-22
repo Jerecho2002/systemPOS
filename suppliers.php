@@ -1,6 +1,10 @@
 <?php
   include "database/database.php";
   $database->login_session();
+  $database->create_supplier();
+  $database->update_supplier();
+  $database->delete_supplier();
+  $suppliers = $database->select_suppliers();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -96,21 +100,29 @@
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-500">Total Suppliers</p>
-            <h4 class="text-2xl font-bold">4</h4>
+            <h4 class="text-2xl font-bold"><?php echo count($suppliers) ?></h4>
             <p class="text-xs text-gray-500">registered suppliers</p>
           </div>
         </div>
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
+            <?php
+              $active_count = 0;
+              foreach($suppliers as $supplier){
+                if($supplier['status'] == 1){
+                  $active_count++;
+                }
+              }
+            ?>
             <p class="text-sm text-gray-500">Active Suppliers</p>
-            <h4 class="text-2xl font-bold">3</h4>
+            <h4 class="text-2xl font-bold"><?php echo $active_count; ?></h4>
             <p class="text-xs text-gray-500">currently active</p>
           </div>
         </div>
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-500">Total Spent</p>
-            <h4 class="text-2xl font-bold">$41291.50</h4>
+            <h4 class="text-2xl font-bold">₱41291.50</h4>
             <p class="text-xs text-gray-500">all time purchases</p>
           </div>
         </div>
@@ -127,12 +139,33 @@
         <div class="bg-white border rounded-xl p-6 lg:col-span-2">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center space-x-4 flex-grow">
-              <input type="text" placeholder="Search suppliers by name, email, or phone..." class="flex-1 px-4 py-2 border rounded-lg focus:outline-none">
+              <input type="text" id="searchInput" placeholder="Search suppliers by name, email, or phone..." class="flex-1 px-4 py-2 border rounded-lg focus:outline-none">
             </div>
-            <button class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 ml-4">
+            <button id="openAddSupplierModal" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 ml-4">
               + Add Supplier
             </button>
           </div>
+          <?php 
+          if(isset($_SESSION['create-success'])){ 
+          $success = $_SESSION['create-success'];
+          ?>
+          <div class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
+            <?php echo $success ?>
+          </div>
+          <?php 
+          unset($_SESSION['create-success']);
+          } ?>
+
+          <?php 
+          if(isset($_SESSION['create-error'])){ 
+          $error = $_SESSION['create-error'];
+          ?>
+          <div class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
+            <?php echo $error ?>
+          </div>
+          <?php 
+          unset($_SESSION['create-error']);
+          } ?>
 
           <h4 class="text-lg font-semibold mb-2">Supplier Database</h4>
           <p class="text-sm text-gray-500 mb-4">4 suppliers found</p>
@@ -150,126 +183,48 @@
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
+                <?php foreach($suppliers as $sp) : ?>
                 <tr>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <p class="text-sm font-medium text-gray-900">TechCorp</p>
+                    <p class="text-sm font-medium text-gray-900"><?php echo $sp['supplier_name']; ?></p>
                     <p class="text-xs text-gray-500">25 products</p>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900">+1-555-0123</p>
-                    <p class="text-xs">orders@techcorp.com</p>
+                    <p class="text-gray-900">+63 <?php echo $sp['contact_number']; ?></p>
+                    <p class="text-xs"><?php echo $sp['email']; ?></p>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <p class="text-gray-900 font-medium">15</p>
                     <p class="text-xs">Last: 2024-01-15</p>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">$12450.75</p>
+                    <p class="text-gray-900 font-medium">₱12450.75</p>
                   </td>
+                  <?php if($sp['status'] == 1) : ?>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="status-label bg-green-100 text-green-800">Active</span>
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div class="flex space-x-2">
-                      <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-                      </button>
-                      <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <p class="text-sm font-medium text-gray-900">ElectroSupply</p>
-                    <p class="text-xs text-gray-500">18 products</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900">+1-555-0456</p>
-                    <p class="text-xs">sales@electrosupply.com</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">8</p>
-                    <p class="text-xs">Last: 2024-01-12</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">$6890.25</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-label bg-green-100 text-green-800">Active</span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div class="flex space-x-2">
-                      <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-                      </button>
-                      <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <p class="text-sm font-medium text-gray-900">CompuParts</p>
-                    <p class="text-xs text-gray-500">35 products</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900">+1-555-0789</p>
-                    <p class="text-xs">info@compuparts.com</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">22</p>
-                    <p class="text-xs">Last: 2024-01-10</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">$18750.50</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-label bg-green-100 text-green-800">Active</span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div class="flex space-x-2">
-                      <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-                      </button>
-                      <button class="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <p class="text-sm font-medium text-gray-900">GadgetHub</p>
-                    <p class="text-xs text-gray-500">12 products</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900">+1-555-0321</p>
-                    <p class="text-xs">wholesale@gadgethub.com</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">5</p>
-                    <p class="text-xs">Last: 2023-12-20</p>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <p class="text-gray-900 font-medium">$3200.00</p>
-                  </td>
+                  <?php elseif($sp['status'] == 0): ?>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="status-label bg-red-100 text-red-800">Inactive</span>
                   </td>
+                  <?php else: ?>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="status-label bg-red-100 text-red-800">Error</span>
+                  </td>
+                  <?php endif; ?>
                   <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div class="flex space-x-2">
-                      <button class="text-gray-400 hover:text-gray-600">
+                      <button class="text-gray-400 hover:text-gray-600 openEditSupplierModal" data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>" data-contact="<?= htmlspecialchars($sp['contact_number']) ?>" data-email="<?= htmlspecialchars($sp['email']) ?>" data-status="<?= $sp['status'] ?>">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                       </button>
-                      <button class="text-gray-400 hover:text-gray-600">
+                      <button class="text-red-500 hover:text-red-700 openDeleteSupplierModal" data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
                       </button>
                     </div>
                   </td>
                 </tr>
+                <?php endforeach; ?>
               </tbody>
             </table>
           </div>
@@ -346,5 +301,240 @@
       </div>
     </section>
   </main>
+  <!-- Add Supplier Modal -->
+<div id="addSupplierModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
+  <div class="bg-white rounded-lg w-full max-w-md p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold">Add New Supplier</h3>
+      <button id="closeAddSupplierModal" class="text-gray-500 hover:text-gray-700">
+        &times;
+      </button>
+    </div>
+
+    <form id="addSupplierForm" method="POST" class="space-y-4">
+      <div>
+        <label for="supplier_name" class="block text-sm font-medium text-gray-700">Supplier Name</label>
+        <input type="text" name="supplier_name" id="supplier_name" required
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <div>
+        <label for="contact_number" class="block text-sm font-medium text-gray-700">Contact Number</label>
+        <input type="text" name="contact_number" id="contact_number"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+        <input type="email" name="email" id="email"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <div>
+        <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
+        <select name="status" id="status"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+          <option value="1" selected>Active</option>
+          <option value="0">Inactive</option>
+        </select>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-4">
+        <button type="button" id="cancelModalBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+          Cancel
+        </button>
+        <button name="create_supplier" type="submit" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
+          Save Supplier
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Update Supplier Modal -->
+<div id="editSupplierModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
+  <div class="bg-white rounded-lg w-full max-w-md p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold">Update Supplier</h3>
+      <button id="closeEditSupplierModal" class="text-gray-500 hover:text-gray-700">&times;</button>
+    </div>
+
+    <form id="editSupplierForm" method="POST" class="space-y-4">
+      <input type="hidden" name="supplier_id" id="edit_supplier_id">
+
+      <div>
+        <label for="edit_supplier_name" class="block text-sm font-medium text-gray-700">Supplier Name</label>
+        <input type="text" name="supplier_name" id="edit_supplier_name" required
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <div>
+        <label for="edit_contact_number" class="block text-sm font-medium text-gray-700">Contact Number</label>
+        <input type="text" name="contact_number" id="edit_contact_number"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <div>
+        <label for="edit_email" class="block text-sm font-medium text-gray-700">Email Address</label>
+        <input type="email" name="email" id="edit_email"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      </div>
+
+      <div>
+        <label for="edit_status" class="block text-sm font-medium text-gray-700">Status</label>
+        <select name="status" id="edit_status"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+          <option value="1">Active</option>
+          <option value="0">Inactive</option>
+        </select>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-4">
+        <button type="button" id="cancelEditModalBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+          Cancel
+        </button>
+        <button name="update_supplier" type="submit" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
+          Update Supplier
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Supplier Modal -->
+<div id="deleteSupplierModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
+  <div class="bg-white rounded-lg w-full max-w-sm p-6">
+    <h3 class="text-lg font-semibold mb-4 text-red-600">Delete Supplier</h3>
+    <p class="mb-4 text-sm text-gray-700">
+      Are you sure you want to delete <span id="delete_supplier_name" class="font-bold"></span>?
+      This action cannot be undone.
+    </p>
+
+    <form method="POST">
+      <input type="hidden" name="supplier_id" id="delete_supplier_id">
+      <div class="flex justify-end space-x-2">
+        <button type="button" id="cancelDeleteModalBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+          Cancel
+        </button>
+        <button type="submit" name="delete_supplier" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+          Confirm Delete
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const openModalBtn = document.getElementById('openAddSupplierModal');
+  const closeModalBtn = document.getElementById('closeAddSupplierModal');
+  const cancelModalBtn = document.getElementById('cancelModalBtn');
+  const modal = document.getElementById('addSupplierModal');
+
+  openModalBtn.addEventListener('click', () => {
+    modal.classList.remove('hidden');
+  });
+
+  closeModalBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  cancelModalBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  // Optional: Close modal when clicking outside the modal content
+  window.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.classList.add('hidden');
+    }
+  });
+</script>
+
+<script>
+  const editButtons = document.querySelectorAll('.openEditSupplierModal');
+  const editModal = document.getElementById('editSupplierModal');
+  const closeEditModal = document.getElementById('closeEditSupplierModal');
+  const cancelEditModal = document.getElementById('cancelEditModalBtn');
+
+  editButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.id;
+      const name = button.dataset.name;
+      const contact = button.dataset.contact;
+      const email = button.dataset.email;
+      const status = button.dataset.status;
+
+      document.getElementById('edit_supplier_id').value = id;
+      document.getElementById('edit_supplier_name').value = name;
+      document.getElementById('edit_contact_number').value = contact;
+      document.getElementById('edit_email').value = email;
+      document.getElementById('edit_status').value = status;
+
+      editModal.classList.remove('hidden');
+    });
+  });
+
+  closeEditModal.addEventListener('click', () => {
+    editModal.classList.add('hidden');
+  });
+
+  cancelEditModal.addEventListener('click', () => {
+    editModal.classList.add('hidden');
+  });
+
+  // Optional: close when clicking outside
+  window.addEventListener('click', (e) => {
+    if (e.target === editModal) {
+      editModal.classList.add('hidden');
+    }
+  });
+</script>
+
+<script>
+const deleteButtons = document.querySelectorAll('.openDeleteSupplierModal');
+const deleteModal = document.getElementById('deleteSupplierModal');
+const deleteSupplierId = document.getElementById('delete_supplier_id');
+const deleteSupplierName = document.getElementById('delete_supplier_name');
+const cancelDeleteBtn = document.getElementById('cancelDeleteModalBtn');
+
+deleteButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    const id = button.getAttribute('data-id');
+    const name = button.getAttribute('data-name');
+    
+    deleteSupplierId.value = id;
+    deleteSupplierName.textContent = name;
+
+    deleteModal.classList.remove('hidden');
+  });
+});
+
+cancelDeleteBtn.addEventListener('click', () => {
+  deleteModal.classList.add('hidden');
+});
+
+window.addEventListener('click', (e) => {
+  if (e.target === deleteModal) {
+    deleteModal.classList.add('hidden');
+  }
+});
+</script>
+
+<script>
+  document.getElementById('searchInput').addEventListener('input', function () {
+  const searchValue = this.value.toLowerCase();
+  const tableRows = document.querySelectorAll('tbody tr');
+
+  tableRows.forEach(row => {
+    const name = row.querySelector('td:nth-child(1) p').textContent.toLowerCase();
+    const contact = row.querySelector('td:nth-child(2) p').textContent.toLowerCase();
+    const email = row.querySelector('td:nth-child(2) p:nth-child(2)').textContent.toLowerCase();
+
+    const match = name.includes(searchValue) || contact.includes(searchValue) || email.includes(searchValue);
+    row.style.display = match ? '' : 'none';
+  });
+});
+</script>
+
 </body>
 </html>
