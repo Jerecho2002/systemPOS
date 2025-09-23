@@ -39,8 +39,8 @@
       </a>
 
       <p class="text-xs uppercase text-gray-500 mt-4 mb-2">Inventory Management</p>
-      <a href="product_catalog.php" class="flex items-center px-3 py-2 rounded-lg hover:bg-gray-100">
-        <span class="ml-2">Product Catalog</span>
+      <a href="item_catalog.php" class="flex items-center px-3 py-2 rounded-lg hover:bg-gray-100">
+        <span class="ml-2">Item Catalog</span>
       </a>
       <a href="stock_levels.php" class="flex items-center px-3 py-2 rounded-lg bg-gray-100 font-medium">
         <span class="ml-2">Stock Levels</span>

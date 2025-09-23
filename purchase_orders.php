@@ -1,6 +1,9 @@
 <?php
   include "database/database.php";
   $database->login_session();
+  $database->create_purchase_order();
+  $suppliers = $database->select_suppliers();
+  $items = $database->select_items();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -39,8 +42,8 @@
       </a>
 
       <p class="text-xs uppercase text-gray-500 mt-4 mb-2">Inventory Management</p>
-      <a href="product_catalog.php" class="flex items-center px-3 py-2 rounded-lg hover:bg-gray-100">
-        <span class="ml-2">Product Catalog</span>
+      <a href="item_catalog.php" class="flex items-center px-3 py-2 rounded-lg hover:bg-gray-100">
+        <span class="ml-2">Item Catalog</span>
       </a>
       <a href="stock_levels.php" class="flex items-center px-3 py-2 rounded-lg hover:bg-gray-100 relative">
         <span class="ml-2">Stock Levels</span>
@@ -136,8 +139,8 @@
               <option>Cancelled</option>
             </select>
           </div>
-          <button class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
-            + Create PO
+          <button id="createPoButton" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
+           + Create PO
           </button>
         </div>
 
@@ -249,5 +252,7 @@
       </div>
     </section>
   </main>
+
+  
 </body>
 </html>

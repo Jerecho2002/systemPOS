@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 22, 2025 at 10:11 PM
+-- Generation Time: Sep 23, 2025 at 06:54 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -50,7 +50,7 @@ INSERT INTO `categories` (`category_id`, `category_name`) VALUES
 CREATE TABLE `items` (
   `item_id` int(11) NOT NULL,
   `barcode` varchar(50) DEFAULT NULL,
-  `product_name` varchar(255) NOT NULL,
+  `item_name` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
   `category_id` int(11) DEFAULT NULL,
   `supplier_id` int(11) DEFAULT NULL,
@@ -64,20 +64,19 @@ CREATE TABLE `items` (
 -- Dumping data for table `items`
 --
 
-INSERT INTO `items` (`item_id`, `barcode`, `product_name`, `description`, `category_id`, `supplier_id`, `cost_price`, `selling_price`, `quantity`, `min_stock`) VALUES
-(2, '123456789', 'Intel i5 6th gen', 'Latest CPU in this year', 1, 1, 3000.00, 5000.00, 10, 3),
-(3, '245622135', 'Amd a8 7500k', 'The best seller in AMD', 1, 2, 3000.00, 8000.00, 5, 5),
-(4, '548777986', 'Geforce RTX 1050 Ti', 'Good for gaming, can handle smooth average games.', 3, 1, 6000.00, 13000.00, 3, 5),
-(5, '544687985', 'Geforce RTX 5050 Ti', 'Best for gaming, can handle big games.', 3, 1, 10000.00, 15000.00, 3, 5),
-(6, '877895645', 'Logitech G&#39;s HERO', 'These mice typically feature high-quality sensors.', 2, 1, 3000.00, 5000.00, 50, 5);
+INSERT INTO `items` (`item_id`, `barcode`, `item_name`, `description`, `category_id`, `supplier_id`, `cost_price`, `selling_price`, `quantity`, `min_stock`) VALUES
+(2, '123456789', 'Intel i5 6th generation', 'Latest CPU in this year', 1, 1, 3000.00, 5000.00, 11, 3),
+(3, '245622135', 'Amd A8 7500k', 'The best seller in AMD', 1, 2, 3000.00, 8000.00, 5, 5),
+(6, '877895645', 'Logitech G&#39;s HERO', 'These mice typically feature high-quality sensors.', 2, 1, 3000.00, 5000.00, 50, 5),
+(7, '123456782', 'Geforce RTX 1050 Ti', 'Latest GPU in 2007', 3, 1, 1000.00, 2000.00, 10, 5);
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `purchases`
+-- Table structure for table `purchase_orders`
 --
 
-CREATE TABLE `purchases` (
+CREATE TABLE `purchase_orders` (
   `purchase_id` int(11) NOT NULL,
   `supplier_id` int(11) NOT NULL,
   `grand_total` decimal(10,2) DEFAULT 0.00,
@@ -86,19 +85,67 @@ CREATE TABLE `purchases` (
   `created_by` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `purchase_orders`
+--
+
+INSERT INTO `purchase_orders` (`purchase_id`, `supplier_id`, `grand_total`, `status`, `date`, `created_by`) VALUES
+(8, 1, 96000.00, '', '2025-09-23 07:06:33', 1),
+(9, 1, 96000.00, '', '2025-09-23 07:07:58', 1),
+(10, 1, 96000.00, '', '2025-09-23 07:09:15', 1),
+(11, 1, 30000.00, '', '2025-09-23 07:09:29', 1),
+(12, 1, 60000.00, '', '2025-09-23 07:09:45', 1),
+(13, 1, 60000.00, '', '2025-09-23 07:10:43', 1),
+(14, 1, 30000.00, '', '2025-09-23 07:11:16', 1),
+(15, 1, 30000.00, '', '2025-09-23 07:12:04', 1),
+(16, 1, 30000.00, '', '2025-09-23 07:13:57', 1),
+(17, 1, 60000.00, '', '2025-09-23 07:15:24', 1);
+
 -- --------------------------------------------------------
 
 --
--- Table structure for table `purchase_items`
+-- Table structure for table `purchase_order_items`
 --
 
-CREATE TABLE `purchase_items` (
-  `purchase_item_id` int(11) NOT NULL,
-  `purchase_id` int(11) NOT NULL,
+CREATE TABLE `purchase_order_items` (
+  `purchase_order_item_id` int(11) NOT NULL,
+  `purchase_order_id` int(11) NOT NULL,
   `item_id` int(11) NOT NULL,
-  `qty` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL,
   `unit_cost` decimal(10,2) NOT NULL,
   `line_total` decimal(10,2) DEFAULT 0.00
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sales`
+--
+
+CREATE TABLE `sales` (
+  `sale_id` int(11) NOT NULL,
+  `customer_name` varchar(80) NOT NULL,
+  `grand_total` decimal(10,2) NOT NULL,
+  `cash_received` decimal(10,2) NOT NULL,
+  `cash_change` decimal(10,2) NOT NULL,
+  `date` datetime NOT NULL,
+  `sold_by` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sale_items`
+--
+
+CREATE TABLE `sale_items` (
+  `sale_item_id` int(11) NOT NULL,
+  `sale_id` int(11) NOT NULL,
+  `item_id` int(11) NOT NULL,
+  `quantity` int(11) DEFAULT 0,
+  `unit_price` decimal(10,2) DEFAULT 0.00,
+  `line_total` decimal(10,2) DEFAULT 0.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -120,7 +167,7 @@ CREATE TABLE `suppliers` (
 --
 
 INSERT INTO `suppliers` (`supplier_id`, `supplier_name`, `contact_number`, `email`, `status`) VALUES
-(1, 'TechLine Distributors', '09557896512', 'TechLine_Distributors@gmail.com', 1),
+(1, 'TechLine Distributor', '09557896512', 'TechLine_Distributors@gmail.com', 1),
 (2, 'NextGen Components Co.', '09887543215', 'NextGen_ComponentsCo.@yahoo.com', 0);
 
 -- --------------------------------------------------------
@@ -166,19 +213,34 @@ ALTER TABLE `items`
   ADD KEY `supplier_id` (`supplier_id`);
 
 --
--- Indexes for table `purchases`
+-- Indexes for table `purchase_orders`
 --
-ALTER TABLE `purchases`
+ALTER TABLE `purchase_orders`
   ADD PRIMARY KEY (`purchase_id`),
   ADD KEY `supplier_id` (`supplier_id`),
   ADD KEY `created_by` (`created_by`);
 
 --
--- Indexes for table `purchase_items`
+-- Indexes for table `purchase_order_items`
 --
-ALTER TABLE `purchase_items`
-  ADD PRIMARY KEY (`purchase_item_id`),
-  ADD KEY `purchase_id` (`purchase_id`),
+ALTER TABLE `purchase_order_items`
+  ADD PRIMARY KEY (`purchase_order_item_id`),
+  ADD KEY `purchase_id` (`purchase_order_id`),
+  ADD KEY `item_id` (`item_id`);
+
+--
+-- Indexes for table `sales`
+--
+ALTER TABLE `sales`
+  ADD PRIMARY KEY (`sale_id`),
+  ADD KEY `sold_by` (`sold_by`);
+
+--
+-- Indexes for table `sale_items`
+--
+ALTER TABLE `sale_items`
+  ADD PRIMARY KEY (`sale_item_id`),
+  ADD KEY `sale_id` (`sale_id`),
   ADD KEY `item_id` (`item_id`);
 
 --
@@ -208,19 +270,31 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `items`
 --
 ALTER TABLE `items`
-  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
--- AUTO_INCREMENT for table `purchases`
+-- AUTO_INCREMENT for table `purchase_orders`
 --
-ALTER TABLE `purchases`
-  MODIFY `purchase_id` int(11) NOT NULL AUTO_INCREMENT;
+ALTER TABLE `purchase_orders`
+  MODIFY `purchase_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
--- AUTO_INCREMENT for table `purchase_items`
+-- AUTO_INCREMENT for table `purchase_order_items`
 --
-ALTER TABLE `purchase_items`
-  MODIFY `purchase_item_id` int(11) NOT NULL AUTO_INCREMENT;
+ALTER TABLE `purchase_order_items`
+  MODIFY `purchase_order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `sales`
+--
+ALTER TABLE `sales`
+  MODIFY `sale_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `sale_items`
+--
+ALTER TABLE `sale_items`
+  MODIFY `sale_item_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
@@ -246,18 +320,31 @@ ALTER TABLE `items`
   ADD CONSTRAINT `items_ibfk_2` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`supplier_id`) ON DELETE SET NULL;
 
 --
--- Constraints for table `purchases`
+-- Constraints for table `purchase_orders`
 --
-ALTER TABLE `purchases`
-  ADD CONSTRAINT `purchases_ibfk_1` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`supplier_id`),
-  ADD CONSTRAINT `purchases_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
+ALTER TABLE `purchase_orders`
+  ADD CONSTRAINT `purchase_orders_ibfk_1` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`supplier_id`),
+  ADD CONSTRAINT `purchase_orders_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
 
 --
--- Constraints for table `purchase_items`
+-- Constraints for table `purchase_order_items`
 --
-ALTER TABLE `purchase_items`
-  ADD CONSTRAINT `purchase_items_ibfk_1` FOREIGN KEY (`purchase_id`) REFERENCES `purchases` (`purchase_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `purchase_items_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `items` (`item_id`);
+ALTER TABLE `purchase_order_items`
+  ADD CONSTRAINT `purchase_order_items_ibfk_1` FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders` (`purchase_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `purchase_order_items_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `items` (`item_id`);
+
+--
+-- Constraints for table `sales`
+--
+ALTER TABLE `sales`
+  ADD CONSTRAINT `sales_ibfk_1` FOREIGN KEY (`sold_by`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `sale_items`
+--
+ALTER TABLE `sale_items`
+  ADD CONSTRAINT `sale_items_ibfk_1` FOREIGN KEY (`sale_id`) REFERENCES `sales` (`sale_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `sale_items_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `items` (`item_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

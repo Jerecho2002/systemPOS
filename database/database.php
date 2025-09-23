@@ -73,13 +73,14 @@ class Database
             $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
             $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING);
 
-            $sql = $this->conn()->prepare("SELECT password, role FROM users WHERE username = ?");
+            $sql = $this->conn()->prepare("SELECT password, role, user_id FROM users WHERE username = ?");
             $sql->execute([$username]);
             $user = $sql->fetch();
 
             if ($user) {
                 if (password_verify($password, $user['password'])) {
                     $_SESSION['login-success'] = $username;
+                    $_SESSION['user_id'] = $user['user_id'];
                     $_SESSION['user-role'] = $user['role'];
                     header("Location: dashboard.php");
                 } else {
@@ -180,7 +181,8 @@ class Database
         }
     }
 
-    public function delete_supplier(){
+    public function delete_supplier()
+    {
         if (isset($_POST['delete_supplier'])) {
             $id = $_POST['supplier_id'];
 
@@ -206,23 +208,25 @@ class Database
         $errors = [];
 
         if (isset($_POST['create_item'])) {
-            $product_name   = filter_input(INPUT_POST, 'product_name', FILTER_SANITIZE_STRING);
-            $barcode        = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
-            $description    = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
-            $category_id    = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
-            $supplier_id    = filter_input(INPUT_POST, 'supplier_id', FILTER_SANITIZE_NUMBER_INT);
-            $cost_price     = filter_input(INPUT_POST, 'cost_price', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
-            $selling_price  = filter_input(INPUT_POST, 'selling_price', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
-            $quantity       = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT);
-            $min_stock      = filter_input(INPUT_POST, 'min_stock', FILTER_SANITIZE_NUMBER_INT);
+            $item_name = filter_input(INPUT_POST, 'item_name', FILTER_SANITIZE_STRING);
+            $barcode = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
+            $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
+            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
+            $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_SANITIZE_NUMBER_INT);
+            $cost_price = filter_input(INPUT_POST, 'cost_price', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+            $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+            $quantity = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT);
+            $min_stock = filter_input(INPUT_POST, 'min_stock', FILTER_SANITIZE_NUMBER_INT);
 
-            if (empty($product_name) || empty($barcode) || empty($category_id) || empty($supplier_id) ||
-                $cost_price === null || $selling_price === null || $quantity === null || $min_stock === null) {
+            if (
+                empty($item_name) || empty($barcode) || empty($category_id) || empty($supplier_id) ||
+                $cost_price === null || $selling_price === null || $quantity === null || $min_stock === null
+            ) {
                 $errors[] = "All fields marked with * are required.";
             }
 
-            if (!empty($product_name) && strlen($product_name) > 30) {
-                $errors[] = "Product name cannot exceed 30 characters.";
+            if (!empty($item_name) && strlen($item_name) > 30) {
+                $errors[] = "Item name cannot exceed 30 characters.";
             }
 
             if (!preg_match("/^[a-zA-Z0-9\- ]+$/", $barcode)) {
@@ -256,10 +260,70 @@ class Database
                 return;
             }
 
-            $sql = $this->conn()->prepare("INSERT INTO items (product_name, barcode, description, category_id, supplier_id, cost_price, selling_price, quantity, min_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $sql->execute([$product_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock]);
+            $sql = $this->conn()->prepare("INSERT INTO items (item_name, barcode, description, category_id, supplier_id, cost_price, selling_price, quantity, min_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock]);
 
-            $_SESSION['create-success'] = "Successfully added product: " . htmlspecialchars($product_name);
+            $_SESSION['create-success'] = "Successfully added item: " . htmlspecialchars($item_name);
+        }
+    }
+
+    public function update_item()
+    {
+        $errors = [];
+
+        if (isset($_POST['update_item'])) {
+            $item_id = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
+            $item_name = filter_input(INPUT_POST, 'item_name', FILTER_SANITIZE_STRING);
+            $barcode = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
+            $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
+            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
+            $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_SANITIZE_NUMBER_INT);
+            $cost_price = filter_input(INPUT_POST, 'cost_price', FILTER_VALIDATE_FLOAT);
+            $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_VALIDATE_FLOAT);
+            $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+            $min_stock = filter_input(INPUT_POST, 'min_stock', FILTER_VALIDATE_INT);
+
+            if (
+                empty($item_name) || empty($barcode) || $selling_price === false ||
+                $category_id === false || $supplier_id === false ||
+                $cost_price === false || $quantity === false || $min_stock === false
+            ) {
+                $errors[] = "All fields marked with * are required and must be valid.";
+            } elseif (strlen($item_name) > 100) {
+                $errors[] = "Item name is too long. Max 100 characters allowed.";
+            } elseif (strlen($barcode) > 50) {
+                $errors[] = "Barcode is too long. Max 50 characters allowed.";
+            }
+
+            $stmt = $this->conn()->prepare("SELECT barcode FROM items WHERE barcode = ? AND item_id != ?");
+            $stmt->execute([$barcode, $item_id]);
+            if ($stmt->fetch()) {
+                $errors[] = "Another item already uses this barcode.";
+            }
+
+            if (!empty($errors)) {
+                $_SESSION['update-error'] = implode("<br><br>", $errors);
+            } else {
+                $sql = $this->conn()->prepare("
+                UPDATE items 
+                SET item_name = ?, barcode = ?, description = ?, category_id = ?, supplier_id = ?, cost_price = ?, selling_price = ?, quantity = ?, min_stock = ?
+                WHERE item_id = ?
+            ");
+                $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $item_id]);
+                $_SESSION['create-success'] = "Item '{$item_name}' has been updated successfully.";
+            }
+        }
+    }
+
+    public function delete_item()
+    {
+        if (isset($_POST['delete_item'])) {
+            $item_id = filter_input(INPUT_POST, 'delete_item_id', FILTER_SANITIZE_NUMBER_INT);
+
+            $delete = $this->conn()->prepare("DELETE FROM items WHERE item_id = ?");
+            $delete->execute([$item_id]);
+
+            $_SESSION['create-success'] = "Deleted product successfully.";
         }
     }
 
@@ -279,6 +343,129 @@ class Database
         return $items;
     }
 
+    // public function create_purchase_order()
+    // {
+    //     if (!isset($_POST['create_po'])) {
+    //         error_log("create_po POST not set. Exiting.");
+    //         return;
+    //     }
+
+    //     $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_VALIDATE_INT);
+    //     $created_by = $_SESSION['user_id'] ?? null;
+
+    //     error_log("Supplier ID: " . var_export($supplier_id, true));
+    //     error_log("Created by (user_id): " . var_export($created_by, true));
+
+    //     if (!$supplier_id || !$created_by) {
+    //         $_SESSION['create-error'] = "Supplier or user info missing.";
+    //         error_log("Exiting: Supplier or created_by missing.");
+    //         return;
+    //     }
+
+    //     $item_ids = $_POST['item_id'] ?? [];
+    //     $quantities = $_POST['quantity'] ?? [];
+
+    //     error_log("Received item_ids: " . json_encode($item_ids));
+    //     error_log("Received quantities: " . json_encode($quantities));
+
+    //     if (empty($item_ids) || empty($quantities)) {
+    //         $_SESSION['create-error'] = "No items submitted.";
+    //         error_log("Exiting: No items submitted.");
+    //         return;
+    //     }
+
+    //     if (count($item_ids) !== count($quantities)) {
+    //         $_SESSION['create-error'] = "Mismatch between items and quantities.";
+    //         error_log("Exiting: Mismatch between items and quantities.");
+    //         return;
+    //     }
+
+    //     $grand_total = 0;
+
+    //     // Collect all items data for insertion
+    //     $items_data = [];
+
+    //     for ($i = 0; $i < count($item_ids); $i++) {
+    //         $item_id = filter_var($item_ids[$i], FILTER_VALIDATE_INT);
+    //         $qty = filter_var($quantities[$i], FILTER_VALIDATE_INT);
+
+    //         error_log("Processing item_id: $item_id with quantity: $qty");
+
+    //         if (!$item_id || !$qty || $qty <= 0) {
+    //             $_SESSION['create-error'] = "Invalid item or quantity at position " . ($i + 1);
+    //             error_log("Exiting: Invalid item or quantity at position " . ($i + 1));
+    //             return;
+    //         }
+
+    //         // Fetch cost_price for this item
+    //         $stmt = $this->conn()->prepare("SELECT cost_price FROM items WHERE item_id = ?");
+    //         $stmt->execute([$item_id]);
+    //         $item = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    //         if (!$item) {
+    //             $_SESSION['create-error'] = "Item not found in DB for item_id: $item_id";
+    //             error_log("Exiting: Item not found in DB for item_id: $item_id");
+    //             return;
+    //         }
+
+    //         $unit_cost = $item['cost_price'];
+    //         $line_total = $unit_cost * $qty;
+    //         $grand_total += $line_total;
+
+    //         $items_data[] = [
+    //             'item_id' => $item_id,
+    //             'quantity' => $qty,
+    //             'unit_cost' => $unit_cost,
+    //             'line_total' => $line_total,
+    //         ];
+
+    //         error_log("Item data collected - item_id: $item_id, qty: $qty, unit_cost: $unit_cost, line_total: $line_total");
+    //     }
+
+    //     error_log("Total grand_total for PO: $grand_total");
+
+    //     try {
+    //         $this->conn()->beginTransaction();
+
+    //         // Insert purchase order
+    //         $insert_po = $this->conn()->prepare("INSERT INTO purchase_orders (supplier_id, grand_total, status, date, created_by) VALUES (?, ?, 'Pending', NOW(), ?)");
+    //         $insert_po->execute([$supplier_id, $grand_total, $created_by]);
+
+    //         $purchase_order_id = $this->conn()->lastInsertId();
+    //         error_log("Inserted purchase_order with ID: $purchase_order_id");
+
+    //         if (!$purchase_order_id) {
+    //             throw new Exception("Failed to retrieve purchase order ID");
+    //         }
+
+    //         // Insert all purchase_order_items
+    //         $insert_item = $this->conn()->prepare("INSERT INTO purchase_order_items (purchase_order_id, item_id, quantity, unit_cost, line_total) VALUES (?, ?, ?, ?, ?)");
+
+    //         foreach ($items_data as $data) {
+    //             error_log("Inserting purchase_order_item for item_id: {$data['item_id']}");
+    //             $insert_item->execute([
+    //                 $purchase_order_id,
+    //                 $data['item_id'],
+    //                 $data['quantity'],
+    //                 $data['unit_cost'],
+    //                 $data['line_total']
+    //             ]);
+    //             error_log("Inserted purchase_order_item for item_id: {$data['item_id']}");
+    //         }
+
+    //         $this->conn()->commit();
+
+    //         $_SESSION['create-success'] = "Purchase order #$purchase_order_id created successfully with " . count($items_data) . " item(s).";
+
+    //     } catch (Exception $e) {
+    //         if ($this->conn()->inTransaction()) {
+    //             $this->conn()->rollBack();
+    //             error_log("Transaction rolled back due to error.");
+    //         }
+    //         $_SESSION['create-error'] = "Error creating purchase order: " . $e->getMessage();
+    //         error_log("PO Creation error: " . $e->getMessage());
+    //     }
+    // }
 
     public function create_category()
     {
