@@ -110,30 +110,43 @@ $suppliers = $database->select_suppliers();
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
             <?php
-            $active_count = 0;
-            foreach ($suppliers as $supplier) {
-              if ($supplier['status'] == 1) {
-                $active_count++;
+            $grandTotal = array_sum(array_column($suppliers, 'total_spent'));
+            ?>
+            <?php
+            function formatCompactCurrency($number)
+            {
+              if ($number >= 1_000_000_000) {
+                return '₱' . round($number / 1_000_000_000, 1) . 'B';
+              } elseif ($number >= 1_000_000) {
+                return '₱' . round($number / 1_000_000, 1) . 'M';
+              } elseif ($number >= 1_000) {
+                return '₱' . round($number / 1_000, 1) . 'k';
+              } else {
+                return '₱' . number_format($number, 0);
               }
             }
             ?>
-            <p class="text-sm text-gray-500">Active Suppliers</p>
-            <h4 class="text-2xl font-bold"><?php echo $active_count; ?></h4>
-            <p class="text-xs text-gray-500">currently active</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
             <p class="text-sm text-gray-500">Total Spent</p>
-            <h4 class="text-2xl font-bold">₱41291.50</h4>
+            <h4 class="text-2xl font-bold"><?= formatCompactCurrency($grandTotal) ?></h4>
             <p class="text-xs text-gray-500">all time purchases</p>
           </div>
         </div>
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
-            <p class="text-sm text-gray-500">Total Orders</p>
-            <h4 class="text-2xl font-bold">50</h4>
-            <p class="text-xs text-gray-500">purchase orders</p>
+            <?php
+            $active_count = count(array_filter($suppliers, fn($sp) => $sp['status'] == 1));
+            $inactive_count = count(array_filter($suppliers, fn($sp) => $sp['status'] == 0));
+            ?>
+            <p class="text-sm text-gray-500">Active Suppliers</p>
+            <h4 class="text-2xl font-bold"><?= $active_count; ?></h4>
+            <p class="text-xs text-gray-500">currently active</p>
+          </div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500">Inactive Suppliers</p>
+            <h4 class="text-2xl font-bold"><?= $inactive_count ?></h4>
+            <p class="text-xs text-gray-500">currently inactive</p>
           </div>
         </div>
       </div>
@@ -195,15 +208,18 @@ $suppliers = $database->select_suppliers();
                 <?php foreach ($suppliers as $sp): ?>
                   <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <p class="text-sm font-medium text-gray-900"><?php echo $sp['supplier_name']; ?></p>
+                      <p class="text-sm font-medium text-gray-900"><?= $sp['supplier_name']; ?></p>
                       <p class="text-xs text-gray-500">25 products</p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <p class="text-gray-900 font-medium">15</p>
-                      <p class="text-xs">Last: 2024-01-15</p>
+                      <p class="text-gray-900 font-medium"><?= $sp['order_count'] ?></p>
+                      <p class="text-xs">
+                        Last:
+                        <?= $sp['last_order_date'] ? date('F j, Y, g:i A', strtotime($sp['last_order_date'])) : 'N/A' ?>
+                      </p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <p class="text-gray-900 font-medium">₱12450.75</p>
+                      <p class="text-gray-900 font-medium">₱<?= number_format($sp['total_spent'], 2) ?></p>
                     </td>
                     <?php if ($sp['status'] == 1): ?>
                       <td class="px-6 py-4 whitespace-nowrap">
@@ -239,7 +255,7 @@ $suppliers = $database->select_suppliers();
                               clip-rule="evenodd" />
                           </svg>
                         </button>
-                        <button class="text-gray-400 hover:text-gray-600 openViewSupplierModal"
+                        <button class="text-blue-400 hover:text-blue-600 openViewSupplierModal"
                           data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
                           data-contact="<?= htmlspecialchars($sp['contact_number']) ?>"
                           data-email="<?= htmlspecialchars($sp['email']) ?>" data-status="<?= $sp['status'] ?>">
@@ -299,34 +315,29 @@ $suppliers = $database->select_suppliers();
             </ul>
           </div>
 
+          <?php
+          usort($suppliers, function ($a, $b) {
+            return $b['total_spent'] <=> $a['total_spent'];
+          });
+          ?>
+
           <!-- Top Suppliers -->
           <div class="bg-white border rounded-xl p-6">
             <h4 class="text-lg font-semibold mb-2">Top Suppliers</h4>
             <p class="text-sm text-gray-500 mb-4">By total spending</p>
             <ul class="space-y-4">
-              <li class="flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                  <span class="text-lg font-bold">1.</span>
-                  <p class="text-sm font-medium">CompuParts</p>
-                </div>
-                <span class="font-bold text-gray-800">$18,750.50</span>
-              </li>
-              <li class="flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                  <span class="text-lg font-bold">2.</span>
-                  <p class="text-sm font-medium">TechCorp</p>
-                </div>
-                <span class="font-bold text-gray-800">$12,450.75</span>
-              </li>
-              <li class="flex justify-between items-center">
-                <div class="flex items-center space-x-2">
-                  <span class="text-lg font-bold">3.</span>
-                  <p class="text-sm font-medium">ElectroSupply</p>
-                </div>
-                <span class="font-bold text-gray-800">$6,890.25</span>
-              </li>
+              <?php foreach ($suppliers as $index => $sp): ?>
+                <li class="flex justify-between items-center">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-lg font-bold"><?= $index + 1; ?>.</span>
+                    <p class="text-sm font-medium"><?= htmlspecialchars($sp['supplier_name']); ?></p>
+                  </div>
+                  <span class="font-bold text-gray-800">₱<?= number_format($sp['total_spent']); ?></span>
+                </li>
+              <?php endforeach; ?>
             </ul>
           </div>
+
         </div>
     </section>
   </main>

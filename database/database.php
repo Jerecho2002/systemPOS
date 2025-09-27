@@ -196,12 +196,23 @@ class Database
 
     public function select_suppliers()
     {
-        $sql = $this->conn()->prepare("SELECT * FROM suppliers");
+        $sql = $this->conn()->prepare("
+        SELECT 
+            s.*,
+            COUNT(po.purchase_order_id) AS order_count,
+            COALESCE(SUM(po.grand_total), 0) AS total_spent,
+            MAX(po.date) AS last_order_date
+        FROM suppliers s
+        LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
+        GROUP BY s.supplier_id
+    ");
+
         $sql->execute();
-        $suppliers = $sql->fetchAll();
+        $suppliers = $sql->fetchAll(PDO::FETCH_ASSOC);
 
         return $suppliers;
     }
+
 
     public function create_item()
     {
@@ -343,129 +354,340 @@ class Database
         return $items;
     }
 
-    // public function create_purchase_order()
-    // {
-    //     if (!isset($_POST['create_po'])) {
-    //         error_log("create_po POST not set. Exiting.");
-    //         return;
-    //     }
+    public function create_purchase_order()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $conn = $this->conn();
+            $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_SANITIZE_NUMBER_INT);
+            $status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING);
+            $item_ids = $_POST['item_id'] ?? [];
+            $quantities = $_POST['quantity'] ?? [];
+            $created_by = $_SESSION['user_id'] ?? null;
 
-    //     $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_VALIDATE_INT);
-    //     $created_by = $_SESSION['user_id'] ?? null;
+            $errors = [];
 
-    //     error_log("Supplier ID: " . var_export($supplier_id, true));
-    //     error_log("Created by (user_id): " . var_export($created_by, true));
+            if (!$supplier_id) {
+                $errors[] = "Supplier is required.";
+            }
 
-    //     if (!$supplier_id || !$created_by) {
-    //         $_SESSION['create-error'] = "Supplier or user info missing.";
-    //         error_log("Exiting: Supplier or created_by missing.");
-    //         return;
-    //     }
+            if (!$created_by) {
+                $errors[] = "User not authenticated.";
+            }
 
-    //     $item_ids = $_POST['item_id'] ?? [];
-    //     $quantities = $_POST['quantity'] ?? [];
+            if (empty($item_ids) || empty($quantities) || count($item_ids) !== count($quantities)) {
+                $errors[] = "Invalid item entries.";
+            }
 
-    //     error_log("Received item_ids: " . json_encode($item_ids));
-    //     error_log("Received quantities: " . json_encode($quantities));
+            if (!empty($errors)) {
+                $_SESSION['create-po-error'] = implode("<br>", $errors);
+                return;
+            }
 
-    //     if (empty($item_ids) || empty($quantities)) {
-    //         $_SESSION['create-error'] = "No items submitted.";
-    //         error_log("Exiting: No items submitted.");
-    //         return;
-    //     }
+            // Generate a unique PO number
+            $checkPo = $conn->prepare("SELECT COUNT(*) FROM purchase_orders WHERE po_number = ?");
+            $attempt = 0;
+            do {
+                $randomSuffix = rand(1000, 9999);
+                $year = date('y');
+                $month = date('m');
+                $po_number = "PO-{$year}-{$month}-{$randomSuffix}";
 
-    //     if (count($item_ids) !== count($quantities)) {
-    //         $_SESSION['create-error'] = "Mismatch between items and quantities.";
-    //         error_log("Exiting: Mismatch between items and quantities.");
-    //         return;
-    //     }
+                $checkPo->execute([$po_number]);
+                $exists = $checkPo->fetchColumn() > 0;
+                $attempt++;
+            } while ($exists && $attempt < 10);
 
-    //     $grand_total = 0;
+            if ($attempt >= 10) {
+                $_SESSION['create-po-error'] = "Failed to generate unique PO number. Please try again.";
+                return;
+            }
 
-    //     // Collect all items data for insertion
-    //     $items_data = [];
+            try {
+                $conn->beginTransaction();
 
-    //     for ($i = 0; $i < count($item_ids); $i++) {
-    //         $item_id = filter_var($item_ids[$i], FILTER_VALIDATE_INT);
-    //         $qty = filter_var($quantities[$i], FILTER_VALIDATE_INT);
+                $grand_total = 0;
+                $po_items = [];
 
-    //         error_log("Processing item_id: $item_id with quantity: $qty");
+                $itemStmt = $conn->prepare("SELECT item_id, cost_price FROM items WHERE item_id = ?");
 
-    //         if (!$item_id || !$qty || $qty <= 0) {
-    //             $_SESSION['create-error'] = "Invalid item or quantity at position " . ($i + 1);
-    //             error_log("Exiting: Invalid item or quantity at position " . ($i + 1));
-    //             return;
-    //         }
+                for ($i = 0; $i < count($item_ids); $i++) {
+                    $item_id = filter_var($item_ids[$i], FILTER_SANITIZE_NUMBER_INT);
+                    $quantity = filter_var($quantities[$i], FILTER_SANITIZE_NUMBER_INT);
 
-    //         // Fetch cost_price for this item
-    //         $stmt = $this->conn()->prepare("SELECT cost_price FROM items WHERE item_id = ?");
-    //         $stmt->execute([$item_id]);
-    //         $item = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($item_id && $quantity > 0) {
+                        $itemStmt->execute([$item_id]);
+                        $item = $itemStmt->fetch();
 
-    //         if (!$item) {
-    //             $_SESSION['create-error'] = "Item not found in DB for item_id: $item_id";
-    //             error_log("Exiting: Item not found in DB for item_id: $item_id");
-    //             return;
-    //         }
+                        if ($item) {
+                            $unit_cost = $item['cost_price'];
+                            $line_total = $unit_cost * $quantity;
+                            $grand_total += $line_total;
 
-    //         $unit_cost = $item['cost_price'];
-    //         $line_total = $unit_cost * $qty;
-    //         $grand_total += $line_total;
+                            $po_items[] = [
+                                'item_id' => $item_id,
+                                'quantity' => $quantity,
+                                'unit_cost' => $unit_cost,
+                                'line_total' => $line_total
+                            ];
+                        }
+                    }
+                }
 
-    //         $items_data[] = [
-    //             'item_id' => $item_id,
-    //             'quantity' => $qty,
-    //             'unit_cost' => $unit_cost,
-    //             'line_total' => $line_total,
-    //         ];
+                // Insert into purchase_orders
+                $poStmt = $conn->prepare("
+                INSERT INTO purchase_orders (po_number, supplier_id, grand_total, status, date, created_by)
+                VALUES (?, ?, ?, ?, NOW(), ?)
+            ");
+                $poStmt->execute([$po_number, $supplier_id, $grand_total, $status, $created_by]);
+                $purchase_order_id = $conn->lastInsertId();
 
-    //         error_log("Item data collected - item_id: $item_id, qty: $qty, unit_cost: $unit_cost, line_total: $line_total");
-    //     }
+                // Insert purchase_order_items
+                $itemInsertStmt = $conn->prepare("
+                INSERT INTO purchase_order_items (purchase_order_id, item_id, quantity, unit_cost, line_total)
+                VALUES (?, ?, ?, ?, ?)
+            ");
 
-    //     error_log("Total grand_total for PO: $grand_total");
+                foreach ($po_items as $po_item) {
+                    $itemInsertStmt->execute([
+                        $purchase_order_id,
+                        $po_item['item_id'],
+                        $po_item['quantity'],
+                        $po_item['unit_cost'],
+                        $po_item['line_total']
+                    ]);
+                }
 
-    //     try {
-    //         $this->conn()->beginTransaction();
+                $conn->commit();
+                $_SESSION['create-success'] = "Purchase order {$po_number} created successfully.";
 
-    //         // Insert purchase order
-    //         $insert_po = $this->conn()->prepare("INSERT INTO purchase_orders (supplier_id, grand_total, status, date, created_by) VALUES (?, ?, 'Pending', NOW(), ?)");
-    //         $insert_po->execute([$supplier_id, $grand_total, $created_by]);
+            } catch (PDOException $e) {
+                $conn->rollBack();
+                $_SESSION['create-error'] = "Failed to create PO: " . $e->getMessage();
+            }
+        }
+    }
 
-    //         $purchase_order_id = $this->conn()->lastInsertId();
-    //         error_log("Inserted purchase_order with ID: $purchase_order_id");
+    public function list_purchase_orders()
+    {
+        $conn = $this->conn();
 
-    //         if (!$purchase_order_id) {
-    //             throw new Exception("Failed to retrieve purchase order ID");
-    //         }
+        $stmt = $conn->prepare("
+        SELECT po.*, s.supplier_name, u.username AS created_by
+        FROM purchase_orders po
+        JOIN suppliers s ON po.supplier_id = s.supplier_id
+        JOIN users u ON po.created_by = u.user_id
+        ORDER BY po.date DESC
+    ");
+        $stmt->execute();
+        $purchaseOrders = $stmt->fetchAll();
 
-    //         // Insert all purchase_order_items
-    //         $insert_item = $this->conn()->prepare("INSERT INTO purchase_order_items (purchase_order_id, item_id, quantity, unit_cost, line_total) VALUES (?, ?, ?, ?, ?)");
+        foreach ($purchaseOrders as &$po) {
+            $itemStmt = $conn->prepare("
+            SELECT 
+                i.item_name, 
+                poi.quantity, 
+                poi.unit_cost, 
+                poi.line_total
+            FROM purchase_order_items poi
+            JOIN items i ON poi.item_id = i.item_id
+            WHERE poi.purchase_order_id = ?
+        ");
+            $itemStmt->execute([$po['purchase_order_id']]);
+            $po['items'] = $itemStmt->fetchAll();
+        }
 
-    //         foreach ($items_data as $data) {
-    //             error_log("Inserting purchase_order_item for item_id: {$data['item_id']}");
-    //             $insert_item->execute([
-    //                 $purchase_order_id,
-    //                 $data['item_id'],
-    //                 $data['quantity'],
-    //                 $data['unit_cost'],
-    //                 $data['line_total']
-    //             ]);
-    //             error_log("Inserted purchase_order_item for item_id: {$data['item_id']}");
-    //         }
+        return $purchaseOrders;
+    }
 
-    //         $this->conn()->commit();
+    public function receive_purchase_order()
+    {
+        if (isset($_POST['receive_po'])) {
+            $po_id = $_POST['receive_po_id'];
+            $conn = $this->conn();
 
-    //         $_SESSION['create-success'] = "Purchase order #$purchase_order_id created successfully with " . count($items_data) . " item(s).";
+            $statusCheck = $conn->prepare("SELECT status FROM purchase_orders WHERE purchase_order_id = ?");
+            $statusCheck->execute([$po_id]);
+            $currentStatus = $statusCheck->fetchColumn();
 
-    //     } catch (Exception $e) {
-    //         if ($this->conn()->inTransaction()) {
-    //             $this->conn()->rollBack();
-    //             error_log("Transaction rolled back due to error.");
-    //         }
-    //         $_SESSION['create-error'] = "Error creating purchase order: " . $e->getMessage();
-    //         error_log("PO Creation error: " . $e->getMessage());
-    //     }
-    // }
+            if (!$currentStatus) {
+                $_SESSION['create-error'] = "Purchase order not found.";
+                return;
+            }
+
+            if (strtolower($currentStatus) === 'received') {
+                $_SESSION['create-error'] = "Purchase order #{$po_id} has already been received.";
+                return;
+            }
+
+            $stmt = $conn->prepare("
+            SELECT item_id, quantity
+            FROM purchase_order_items
+            WHERE purchase_order_id = ?
+        ");
+            $stmt->execute([$po_id]);
+            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($items as $item) {
+                $itemId = $item['item_id'];
+                $quantityToAdd = $item['quantity'];
+
+                $updateStmt = $conn->prepare("
+                UPDATE items
+                SET quantity = quantity + ?
+                WHERE item_id = ?
+            ");
+                $updateStmt->execute([$quantityToAdd, $itemId]);
+            }
+
+            $updatePo = $conn->prepare("
+            UPDATE purchase_orders
+            SET status = 'Received'
+            WHERE purchase_order_id = ?
+        ");
+            $updatePo->execute([$po_id]);
+
+            $_SESSION['create-success'] = "Inventory restocked successfully from PO #{$po_id}.";
+        }
+    }
+
+    public function cancel_purchase_order()
+    {
+        if (isset($_POST['cancel_po'])) {
+            $po_id = $_POST['cancel_po_id'];
+            $conn = $this->conn();
+
+            $stmt = $conn->prepare("UPDATE purchase_orders SET status = 'Cancelled' WHERE purchase_order_id = ?");
+            $stmt->execute([$po_id]);
+
+            $_SESSION['create-success'] = "Purchase order #{$po_id} cancelled successfully.";
+        }
+    }
+
+    public function delete_purchase_order()
+    {
+        if (isset($_POST['delete_purchase_order'])) {
+            $id = $_POST['purchase_order_id'];
+
+            $deleteItems = $this->conn()->prepare("DELETE FROM purchase_order_items WHERE purchase_order_id = ?");
+            $deleteItems->execute([$id]);
+
+            $deletePO = $this->conn()->prepare("DELETE FROM purchase_orders WHERE purchase_order_id = ?");
+            $deletePO->execute([$id]);
+
+            $_SESSION['create-success'] = "Purchase order deleted successfully.";
+        }
+    }
+
+
+    public function select_purchase_orders()
+    {
+        $sql = $this->conn()->prepare("
+            SELECT 
+                po.*, 
+                s.supplier_name 
+            FROM 
+                purchase_orders po
+            JOIN 
+                suppliers s ON po.supplier_id = s.supplier_id
+        ");
+
+        $sql->execute();
+        $purchase_orders = $sql->fetchAll();
+
+        return $purchase_orders;
+    }
+
+
+    public function select_purchase_order_items()
+    {
+        $sql = $this->conn()->prepare("SELECT * from purchase_order_items");
+        $sql->execute();
+        $purchase_order_items = $sql->fetchAll();
+
+        return $purchase_order_items;
+    }
+
+    public function item_stock_adjust()
+    {
+        $errors = [];
+
+        if (isset($_POST['adjust_stock_submit'])) {
+            $item_id = filter_input(INPUT_POST, 'item_id', FILTER_VALIDATE_INT);
+            $adjust_qty = filter_input(INPUT_POST, 'adjust_qty', FILTER_VALIDATE_INT);
+            $reason = filter_input(INPUT_POST, 'reason_adjustment', FILTER_SANITIZE_STRING);
+            $adjust_by = $_SESSION['user_id'] ?? null;  // Use the correct session key for user ID
+
+            if (!$item_id || $adjust_qty === false || empty($reason) || !$adjust_by) {
+                $errors[] = "Please fill in all required fields correctly.";
+            } else {
+                $conn = $this->conn();
+
+                // Fetch current quantity
+                $stmt = $conn->prepare("SELECT quantity FROM items WHERE item_id = ?");
+                $stmt->execute([$item_id]);
+                $item = $stmt->fetch();
+
+                if (!$item) {
+                    $errors[] = "Item not found.";
+                } else {
+                    $previous_quantity = (int) $item['quantity'];
+                    $new_quantity = $previous_quantity + $adjust_qty;
+
+                }
+            }
+
+            if (!empty($errors)) {
+                $_SESSION['adjust-error'] = implode("<br><br>", $errors);
+            } else {
+                try {
+                    $conn->beginTransaction();
+
+                    // Insert adjustment record
+                    $stmt = $conn->prepare("
+                    INSERT INTO item_stock_adjustment 
+                    (item_id, previous_quantity, new_quantity, reason_adjustment, adjust_by, created_at) 
+                    VALUES (?, ?, ?, ?, ?, NOW())
+                ");
+                    $stmt->execute([$item_id, $previous_quantity, $new_quantity, $reason, $adjust_by]);
+
+                    // Update item quantity
+                    $stmt = $conn->prepare("UPDATE items SET quantity = ? WHERE item_id = ?");
+                    $stmt->execute([$new_quantity, $item_id]);
+
+                    $conn->commit();
+
+                    $_SESSION['create-success'] = "Stock successfully adjusted.";
+                } catch (PDOException $e) {
+                    if ($conn->inTransaction()) {
+                        $conn->rollBack();
+                    }
+                    $_SESSION['create-error'] = "Database error: " . $e->getMessage();
+                }
+            }
+        }
+    }
+
+    public function select_stock_adjustment()
+    {
+        $sql = $this->conn()->prepare("
+            SELECT 
+                isa.*, 
+                i.item_name,
+                u.username 
+            FROM 
+                item_stock_adjustment isa
+            JOIN 
+                items i ON isa.item_id = i.item_id
+            JOIN 
+                users u ON isa.adjust_by = u.user_id
+            ORDER BY isa.created_at DESC LIMIT 3
+        ");
+
+        $sql->execute();
+        $stock_adjustment = $sql->fetchAll();
+
+        return $stock_adjustment;
+    }
 
     public function create_category()
     {
