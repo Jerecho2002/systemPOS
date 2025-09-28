@@ -249,7 +249,7 @@ $items = $database->select_items();
                 </div>
                 <div class="text-right">
                   <?php
-                  $adjustment = $sa['new_quantity'];
+                  $adjustment = $sa['new_quantity'] - $sa['previous_quantity'];
                   $color = $adjustment >= 0 ? 'text-green-600' : 'text-red-600';
                   $sign = $adjustment > 0 ? '+' : '';
                   ?>
@@ -269,7 +269,6 @@ $items = $database->select_items();
     <div class="bg-white rounded-lg shadow-lg w-96 p-6">
       <h2 class="text-xl font-semibold mb-4">Adjust Stock</h2>
       <form id="adjustForm" method="POST" action="">
-        <!-- Hidden input to send item_id -->
         <input type="hidden" name="item_id" id="modalItemId" value="" />
 
         <div class="mb-3">
@@ -278,17 +277,23 @@ $items = $database->select_items();
         </div>
 
         <div class="mb-3">
-          <label class="block text-sm font-medium text-gray-700">Current Quantity</label>
-          <p id="modalCurrentQty" class="mt-1 text-gray-900"></p>
+          <label class="block text-sm font-medium text-gray-700">Current Quantity:</label>
+          <p id="modalCurrentQty" class="inline-block text-gray-900 ml-1"></p>
         </div>
 
         <div class="mb-3">
-          <label for="adjustQty" class="block text-sm font-medium text-gray-700">
+          <label for="adjustQty" class="block text-sm font-medium text-gray-700 mb-1">
             Adjustment Quantity
           </label>
-          <input type="number" id="adjustQty" name="adjust_qty" required
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            placeholder="Enter adjustment (+ or -)" />
+          <div class="flex items-center space-x-2">
+            <button type="button" id="decrementBtn"
+              class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold">-</button>
+            <input type="number" id="adjustQty" name="adjust_qty" required
+              class="w-full text-center rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              placeholder="Enter adjustment" />
+            <button type="button" id="incrementBtn"
+              class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold">+</button>
+          </div>
         </div>
 
         <div class="mb-4">
@@ -303,13 +308,14 @@ $items = $database->select_items();
             Cancel
           </button>
           <button type="submit" name="adjust_stock_submit"
-            class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white">
+            class="px-4 py-2 rounded bg-black text-white hover:bg-gray-800">
             Submit
           </button>
         </div>
       </form>
     </div>
   </div>
+
 
   <!-- Save scroll before reload/submit -->
   <script>
@@ -346,6 +352,22 @@ $items = $database->select_items();
     }
   </script>
 
+  <!-- (+ -) Button Script -->
+  <script>
+    document.getElementById('decrementBtn').addEventListener('click', function () {
+      const input = document.getElementById('adjustQty');
+      let value = parseInt(input.value) || 0;
+      input.value = value - 1;
+    });
+
+    document.getElementById('incrementBtn').addEventListener('click', function () {
+      const input = document.getElementById('adjustQty');
+      let value = parseInt(input.value) || 0;
+      input.value = value + 1;
+    });
+  </script>
+
+
   <!-- Stock Adjustment Script -->
   <script>
     const adjustModal = document.getElementById('adjustModal');
@@ -367,7 +389,6 @@ $items = $database->select_items();
         modalItemName.textContent = itemName;
         modalCurrentQty.textContent = currentQty;
 
-        // Reset form inputs (adjustQty and reason)
         adjustForm.reset();
 
         // Show the modal
@@ -385,9 +406,6 @@ $items = $database->select_items();
         adjustModal.classList.add('hidden');
       }
     });
-
-    // Let the form submit normally (no e.preventDefault)
-    // Backend PHP will handle the form submission
   </script>
 </body>
 

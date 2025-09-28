@@ -200,7 +200,7 @@ class Database
         SELECT 
             s.*,
             COUNT(po.purchase_order_id) AS order_count,
-            COALESCE(SUM(po.grand_total), 0) AS total_spent,
+            COALESCE(SUM(CASE WHEN po.status = 'Received' THEN po.grand_total ELSE 0 END), 0) AS total_spent,
             MAX(po.date) AS last_order_date
         FROM suppliers s
         LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
@@ -212,6 +212,7 @@ class Database
 
         return $suppliers;
     }
+
 
 
     public function create_item()
@@ -688,6 +689,145 @@ class Database
 
         return $stock_adjustment;
     }
+
+    public function add_to_cart()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $item_id = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
+            $quantity = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT) ?? 1;
+
+            if (!$item_id || $quantity <= 0) {
+                $_SESSION['sale-error'] = "Invalid item or quantity.";
+                return;
+            }
+
+            $stmt = $this->conn()->prepare("SELECT item_id, item_name, selling_price, quantity as stock FROM items WHERE item_id = ?");
+            $stmt->execute([$item_id]);
+            $item = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$item) {
+                $_SESSION['sale-error'] = "Item not found.";
+                return;
+            }
+
+            if (!isset($_SESSION['cart'])) {
+                $_SESSION['cart'] = [];
+            }
+
+            // Check if already in cart
+            if (isset($_SESSION['cart'][$item_id])) {
+                $_SESSION['cart'][$item_id]['quantity'] += $quantity;
+            } else {
+                $_SESSION['cart'][$item_id] = [
+                    'item_id' => $item_id,
+                    'name' => $item['item_name'],
+                    'quantity' => $quantity,
+                    'unit_price' => $item['selling_price'],
+                    'line_total' => $item['selling_price'] * $quantity
+                ];
+            }
+
+            // Recalculate line total
+            $_SESSION['cart'][$item_id]['line_total'] = $_SESSION['cart'][$item_id]['unit_price'] * $_SESSION['cart'][$item_id]['quantity'];
+        }
+    }
+
+    public function process_sale()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $cart = $_SESSION['cart'] ?? [];
+            $cash_received = filter_input(INPUT_POST, 'cash_received', FILTER_VALIDATE_FLOAT);
+            $user_id = $_SESSION['user_id'] ?? null;
+
+            if (empty($cart)) {
+                $_SESSION['sale-error'] = "Cart is empty.";
+                return;
+            }
+
+            if (!$cash_received || $cash_received <= 0) {
+                $_SESSION['sale-error'] = "Invalid cash received.";
+                return;
+            }
+
+            $total = 0;
+            foreach ($cart as $item) {
+                $total += $item['line_total'];
+            }
+
+            $grand_total = $total;
+            $change = $cash_received - $grand_total;
+
+            if ($change < 0) {
+                $_SESSION['sale-error'] = "Insufficient cash received.";
+                return;
+            }
+
+            try {
+                $conn = $this->conn();
+                $conn->beginTransaction();
+
+                // Insert into sales
+                $stmt = $conn->prepare("
+                INSERT INTO sales (customer_name, grand_total, cash_received, cash_change, date, sold_by)
+                VALUES (?, ?, ?, ?, NOW(), ?)
+            ");
+                $stmt->execute([
+                    'Walk-in',
+                    $grand_total,
+                    $cash_received,
+                    $change,
+                    $user_id
+                ]);
+
+                $sale_id = $conn->lastInsertId();
+
+                // Insert sale items
+                $itemStmt = $conn->prepare("
+                INSERT INTO sale_items (sale_id, item_id, quantity, unit_price, line_total)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+                $stockUpdate = $conn->prepare("
+                UPDATE items SET quantity = quantity - ? WHERE item_id = ?
+            ");
+
+                foreach ($cart as $item) {
+                    $itemStmt->execute([
+                        $sale_id,
+                        $item['item_id'],
+                        $item['quantity'],
+                        $item['unit_price'],
+                        $item['line_total']
+                    ]);
+
+                    $stockUpdate->execute([
+                        $item['quantity'],
+                        $item['item_id']
+                    ]);
+                }
+
+                $conn->commit();
+                unset($_SESSION['cart']);
+                $_SESSION['sale-success'] = "Sale processed successfully. Change: ₱" . number_format($change, 2);
+
+            } catch (PDOException $e) {
+                $conn->rollBack();
+                $_SESSION['sale-error'] = "Transaction failed: " . $e->getMessage();
+            }
+        }
+    }
+
+    public function remove_from_cart()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_item_id'])) {
+            $item_id = filter_input(INPUT_POST, 'remove_item_id', FILTER_SANITIZE_NUMBER_INT);
+
+            if ($item_id && isset($_SESSION['cart'][$item_id])) {
+                unset($_SESSION['cart'][$item_id]);
+                $_SESSION['sale-success'] = "Item removed from cart.";
+            }
+        }
+    }
+
 
     public function create_category()
     {

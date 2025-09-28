@@ -5,6 +5,7 @@ $database->create_supplier();
 $database->update_supplier();
 $database->delete_supplier();
 $suppliers = $database->select_suppliers();
+$purchase_orders = $database->select_purchase_orders();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -274,44 +275,35 @@ $suppliers = $database->select_suppliers();
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
 
+          <?php
+          $recentOrders = array_filter($purchase_orders, function ($po) {
+            return in_array($po['status'], ['Received', 'Ordered']);
+          });
+          $recentOrders = array_slice($recentOrders, 0, 3);
+          ?>
+
           <!-- Recent Orders -->
           <div class="bg-white border rounded-xl p-6">
             <h4 class="text-lg font-semibold mb-2">Recent Orders</h4>
             <p class="text-sm text-gray-500 mb-4">Latest purchase orders</p>
             <ul class="space-y-4 text-sm">
-              <li class="flex justify-between items-start">
-                <div>
-                  <p class="font-medium">PO-2024-001</p>
-                  <p class="text-xs text-gray-500">TechCorp</p>
-                  <p class="font-bold">$850</p>
-                </div>
-                <div class="text-right">
-                  <span class="status-label bg-blue-100 text-blue-800">Ordered</span>
-                  <p class="text-xs text-gray-500">2024-01-15</p>
-                </div>
-              </li>
-              <li class="flex justify-between items-start">
-                <div>
-                  <p class="font-medium">PO-2024-002</p>
-                  <p class="text-xs text-gray-500">ElectroSupply</p>
-                  <p class="font-bold">$320</p>
-                </div>
-                <div class="text-right">
-                  <span class="status-label bg-green-100 text-green-800">Received</span>
-                  <p class="text-xs text-gray-500">2024-01-12</p>
-                </div>
-              </li>
-              <li class="flex justify-between items-start">
-                <div>
-                  <p class="font-medium">PO-2024-003</p>
-                  <p class="text-xs text-gray-500">CompuParts</p>
-                  <p class="font-bold">$1200</p>
-                </div>
-                <div class="text-right">
-                  <span class="status-label bg-blue-100 text-blue-800">Ordered</span>
-                  <p class="text-xs text-gray-500">2024-01-10</p>
-                </div>
-              </li>
+              <?php foreach ($recentOrders as $po): ?>
+                <li class="flex justify-between items-start">
+                  <div>
+                    <p class="font-medium"><?= htmlspecialchars($po['po_number']); ?></p>
+                    <p class="text-xs text-gray-500"><?= htmlspecialchars($po['supplier_name']); ?></p>
+                    <p class="font-bold">₱<?= number_format($po['grand_total'], 2); ?></p>
+                  </div>
+                  <div class="text-right">
+                    <?php if ($po['status'] === 'Received'): ?>
+                      <span class="status-label bg-green-100 text-green-800"><?= $po['status']; ?></span>
+                    <?php elseif ($po['status'] === 'Ordered'): ?>
+                      <span class="status-label bg-blue-100 text-blue-800"><?= $po['status']; ?></span>
+                    <?php endif; ?>
+                    <p class="text-xs text-gray-500"><?= date('F j, Y, g:i A', strtotime($po['date'])); ?></p>
+                  </div>
+                </li>
+              <?php endforeach; ?>
             </ul>
           </div>
 
@@ -327,6 +319,8 @@ $suppliers = $database->select_suppliers();
             <p class="text-sm text-gray-500 mb-4">By total spending</p>
             <ul class="space-y-4">
               <?php foreach ($suppliers as $index => $sp): ?>
+                <?php if ($index >= 3)
+                  break; ?>
                 <li class="flex justify-between items-center">
                   <div class="flex items-center space-x-2">
                     <span class="text-lg font-bold"><?= $index + 1; ?>.</span>
