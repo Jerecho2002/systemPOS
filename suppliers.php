@@ -3,7 +3,7 @@ include "database/database.php";
 $database->login_session();
 $database->create_supplier();
 $database->update_supplier();
-$database->delete_supplier();
+$database->archive_supplier();
 $suppliers = $database->select_suppliers();
 $purchase_orders = $database->select_purchase_orders();
 ?>
@@ -207,6 +207,7 @@ $purchase_orders = $database->select_purchase_orders();
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
                 <?php foreach ($suppliers as $sp): ?>
+                <?php if($sp['status'] === 0) continue; ?>
                   <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <p class="text-sm font-medium text-gray-900"><?= $sp['supplier_name']; ?></p>
@@ -248,11 +249,12 @@ $purchase_orders = $database->select_purchase_orders();
                               clip-rule="evenodd" />
                           </svg>
                         </button>
-                        <button class="text-red-500 hover:text-red-700 openDeleteSupplierModal"
-                          data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>">
+                        <button class="text-red-500 hover:text-red-700 openArchiveSupplierModal"
+                          data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
+                          title="Archive Supplier">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                              d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
                               clip-rule="evenodd" />
                           </svg>
                         </button>
@@ -438,25 +440,26 @@ $purchase_orders = $database->select_purchase_orders();
     </div>
   </div>
 
-  <!-- Delete Supplier Modal -->
-  <div id="deleteSupplierModal"
+  <!-- Archive Supplier Modal -->
+  <div id="archiveSupplierModal"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
     <div class="bg-white rounded-lg w-full max-w-sm p-6">
-      <h3 class="text-lg font-semibold mb-4 text-red-600">Delete Supplier</h3>
+      <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Supplier</h3>
       <p class="mb-4 text-sm text-gray-700">
-        Are you sure you want to delete <span id="delete_supplier_name" class="font-bold"></span>?
-        This action cannot be undone.
+        Are you sure you want to archive <span id="archive_supplier_name" class="font-bold"></span>?
+        This action can be undone.
       </p>
 
       <form method="POST">
-        <input type="hidden" name="supplier_id" id="delete_supplier_id">
+        <input type="hidden" name="supplier_id" id="archive_supplier_id">
         <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelDeleteModalBtn"
+          <button type="button" id="cancelArchiveModalBtn"
             class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
             Cancel
           </button>
-          <button type="submit" name="delete_supplier" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-            Confirm Delete
+          <button type="submit" name="archive_supplier"
+            class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+            Confirm Archive
           </button>
         </div>
       </form>
@@ -601,31 +604,31 @@ $purchase_orders = $database->select_purchase_orders();
 
     <!-- Delete Supplier Script -->
     <script>
-      const deleteButtons = document.querySelectorAll('.openDeleteSupplierModal');
-      const deleteModal = document.getElementById('deleteSupplierModal');
-      const deleteSupplierId = document.getElementById('delete_supplier_id');
-      const deleteSupplierName = document.getElementById('delete_supplier_name');
-      const cancelDeleteBtn = document.getElementById('cancelDeleteModalBtn');
+      const archiveButtons = document.querySelectorAll('.openArchiveSupplierModal');
+      const archiveModal = document.getElementById('archiveSupplierModal');
+      const archiveSupplierId = document.getElementById('archive_supplier_id');
+      const archiveSupplierName = document.getElementById('archive_supplier_name');
+      const cancelArchiveBtn = document.getElementById('cancelArchiveModalBtn');
 
-      deleteButtons.forEach(button => {
+      archiveButtons.forEach(button => {
         button.addEventListener('click', () => {
           const id = button.getAttribute('data-id');
           const name = button.getAttribute('data-name');
 
-          deleteSupplierId.value = id;
-          deleteSupplierName.textContent = name;
+          archiveSupplierId.value = id;
+          archiveSupplierName.textContent = name;
 
-          deleteModal.classList.remove('hidden');
+          archiveModal.classList.remove('hidden');
         });
       });
 
-      cancelDeleteBtn.addEventListener('click', () => {
-        deleteModal.classList.add('hidden');
+      cancelArchiveBtn.addEventListener('click', () => {
+        archiveModal.classList.add('hidden');
       });
 
       window.addEventListener('click', (e) => {
-        if (e.target === deleteModal) {
-          deleteModal.classList.add('hidden');
+        if (e.target === archiveModal) {
+          archiveModal.classList.add('hidden');
         }
       });
     </script>

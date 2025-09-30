@@ -181,17 +181,19 @@ class Database
         }
     }
 
-    public function delete_supplier()
+    public function archive_supplier()
     {
-        if (isset($_POST['delete_supplier'])) {
+        if (isset($_POST['archive_supplier'])) {
             $id = $_POST['supplier_id'];
 
-            $sql = $this->conn()->prepare("DELETE FROM suppliers WHERE supplier_id = ?");
+            // Update the supplier's status to 0 (archived)
+            $sql = $this->conn()->prepare("UPDATE suppliers SET status = 0 WHERE supplier_id = ?");
             $sql->execute([$id]);
 
-            $_SESSION['create-success'] = "Supplier deleted successfully.";
+            $_SESSION['create-success'] = "Supplier archived successfully.";
         }
     }
+
 
 
     public function select_suppliers()
@@ -564,20 +566,19 @@ class Database
         }
     }
 
-    public function delete_purchase_order()
+    public function archive_purchase_order()
     {
-        if (isset($_POST['delete_purchase_order'])) {
+        if (isset($_POST['archive_purchase_order'])) {
             $id = $_POST['purchase_order_id'];
 
-            $deleteItems = $this->conn()->prepare("DELETE FROM purchase_order_items WHERE purchase_order_id = ?");
-            $deleteItems->execute([$id]);
+            // Update the status to 0 (archived)
+            $archivePO = $this->conn()->prepare("UPDATE purchase_orders SET is_active = 0 WHERE purchase_order_id = ?");
+            $archivePO->execute([$id]);
 
-            $deletePO = $this->conn()->prepare("DELETE FROM purchase_orders WHERE purchase_order_id = ?");
-            $deletePO->execute([$id]);
-
-            $_SESSION['create-success'] = "Purchase order deleted successfully.";
+            $_SESSION['create-success'] = "Purchase order archived successfully.";
         }
     }
+
 
 
     public function select_purchase_orders()
@@ -766,17 +767,38 @@ class Database
                 $conn = $this->conn();
                 $conn->beginTransaction();
 
-                // Insert into sales
+                // Generate a unique transaction ID (TXN-YYMM-RAND)
+                $checkTransaction = $conn->prepare("SELECT COUNT(*) FROM sales WHERE transaction_id = ?");
+                $attempt = 0;
+                do {
+                    $randomSuffix = rand(1000, 9999); // 4-digit random number
+                    $year = date('y'); // Last two digits of the year
+                    $month = date('m'); // Current month
+                    $transaction_id = "TXN-{$year}{$month}-{$randomSuffix}"; // Example: TXN-2509-1234
+
+                    // Check if the generated transaction_id already exists
+                    $checkTransaction->execute([$transaction_id]);
+                    $exists = $checkTransaction->fetchColumn() > 0;
+                    $attempt++;
+                } while ($exists && $attempt < 10); // Try up to 10 times to generate a unique ID
+
+                if ($attempt >= 10) {
+                    $_SESSION['sale-error'] = "Failed to generate a unique transaction ID. Please try again.";
+                    return;
+                }
+
+                // Insert into sales table, including transaction_id
                 $stmt = $conn->prepare("
-                INSERT INTO sales (customer_name, grand_total, cash_received, cash_change, date, sold_by)
-                VALUES (?, ?, ?, ?, NOW(), ?)
+                INSERT INTO sales (transaction_id, customer_name, grand_total, cash_received, cash_change, date, sold_by)
+                VALUES (?, ?, ?, ?, ?, NOW(), ?)
             ");
                 $stmt->execute([
-                    'Walk-in',
-                    $grand_total,
-                    $cash_received,
-                    $change,
-                    $user_id
+                    $transaction_id, // Unique transaction_id
+                    'Walk-in',       // Customer name
+                    $grand_total,    // Grand total
+                    $cash_received,  // Cash received
+                    $change,         // Cash change
+                    $user_id         // Sold by (user ID)
                 ]);
 
                 $sale_id = $conn->lastInsertId();
@@ -815,6 +837,7 @@ class Database
             }
         }
     }
+
 
     public function remove_from_cart()
     {

@@ -154,7 +154,7 @@ $grand_total = $subtotal;
 
           <p class="text-xs text-gray-500 mb-4">Click products to add to cart</p>
 
-          <!-- 🆕 Scrollable product grid -->
+          <!-- Scrollable product grid -->
           <div id="productGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[130px] overflow-y-auto pr-1">
 
             <?php foreach ($items as $item): ?>

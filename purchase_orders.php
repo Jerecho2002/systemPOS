@@ -3,7 +3,7 @@ include "database/database.php";
 $database->login_session();
 $database->create_purchase_order();
 $database->cancel_purchase_order();
-$database->delete_purchase_order();
+$database->archive_purchase_order();
 $database->receive_purchase_order();
 $purchaseOrders = $database->list_purchase_orders();
 $purchase_orders = $database->select_purchase_orders();
@@ -240,6 +240,8 @@ $items = $database->select_items();
             ?>
             <tbody class="bg-white divide-y divide-gray-200">
               <?php foreach ($purchaseOrders as $po): ?>
+                <?php if ($po['is_active'] === 0)
+                  continue; ?>
                 <tr>
                   <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     <?= htmlspecialchars($po['po_number']) ?>
@@ -308,12 +310,12 @@ $items = $database->select_items();
                       </button>
                     <?php endif; ?>
                     <?php if ($po['status'] == "Cancelled"): ?>
-                      <button class="text-red-500 hover:text-red-700 openDeletePoModal"
+                      <button class="text-red-500 hover:text-red-700 openArchivePoModal"
                         data-id="<?= $po['purchase_order_id'] ?>" data-name="<?= htmlspecialchars($po['po_number']) ?>"
-                        title="Delete Purchase Order">
+                        title="Archive Purchase Order">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                            d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
                             clip-rule="evenodd" />
                         </svg>
                       </button>
@@ -476,31 +478,32 @@ $items = $database->select_items();
   </div>
 
 
-  <!-- Delete Purchase Order Modal -->
-  <div id="deletePurchaseOrderModal"
+  <!-- Archive Purchase Order Modal -->
+  <div id="archivePurchaseOrderModal"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
     <div class="bg-white rounded-lg w-full max-w-sm p-6">
-      <h3 class="text-lg font-semibold mb-4 text-red-600">Delete Purchase Order</h3>
+      <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Purchase Order</h3>
       <p class="mb-4 text-sm text-gray-700">
-        Are you sure you want to delete <span id="delete_po_number" class="font-bold"></span>?
-        This action cannot be undone.
+        Are you sure you want to archive <span id="archive_po_number" class="font-bold"></span>?
+        This action can be undone.
       </p>
 
       <form method="POST">
-        <input type="hidden" name="purchase_order_id" id="delete_po_id">
+        <input type="hidden" name="purchase_order_id" id="archive_po_id">
         <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelDeletePoModalBtn"
+          <button type="button" id="cancelArchivePoModalBtn"
             class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
             Cancel
           </button>
-          <button type="submit" name="delete_purchase_order"
-            class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-            Confirm Delete
+          <button type="submit" name="archive_purchase_order"
+            class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+            Confirm Archive
           </button>
         </div>
       </form>
     </div>
   </div>
+
 
   <!-- Save scroll before reload/submit -->
   <script>
@@ -752,31 +755,31 @@ $items = $database->select_items();
 
   <!-- Delete Purchase Orders Script -->
   <script>
-    const deletePoButtons = document.querySelectorAll('.openDeletePoModal');
-    const deletePoModal = document.getElementById('deletePurchaseOrderModal');
-    const deletePoIdInput = document.getElementById('delete_po_id');
-    const deletePoNumberSpan = document.getElementById('delete_po_number');
-    const cancelDeletePoBtn = document.getElementById('cancelDeletePoModalBtn');
+    const archivePoButtons = document.querySelectorAll('.openArchivePoModal');
+    const archivePoModal = document.getElementById('archivePurchaseOrderModal');
+    const archivePoIdInput = document.getElementById('archive_po_id');
+    const archivePoNumberSpan = document.getElementById('archive_po_number');
+    const cancelArchivePoBtn = document.getElementById('cancelArchivePoModalBtn');
 
-    deletePoButtons.forEach(button => {
+    archivePoButtons.forEach(button => {
       button.addEventListener('click', () => {
         const id = button.getAttribute('data-id');
         const poNumber = button.getAttribute('data-name');
 
-        deletePoIdInput.value = id;
-        deletePoNumberSpan.textContent = poNumber;
+        archivePoIdInput.value = id;
+        archivePoNumberSpan.textContent = poNumber;
 
-        deletePoModal.classList.remove('hidden');
+        archivePoModal.classList.remove('hidden');
       });
     });
 
-    cancelDeletePoBtn.addEventListener('click', () => {
-      deletePoModal.classList.add('hidden');
+    cancelArchivePoBtn.addEventListener('click', () => {
+      archivePoModal.classList.add('hidden');
     });
 
     window.addEventListener('click', (e) => {
-      if (e.target === deletePoModal) {
-        deletePoModal.classList.add('hidden');
+      if (e.target === archivePoModal) {
+        archivePoModal.classList.add('hidden');
       }
     });
   </script>
