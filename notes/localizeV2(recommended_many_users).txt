@@ -1,0 +1,29 @@
+in CMD (command prompt)
+1. Find Your Server’s Local IP Address
+- ipconfig
+- sample -  IPv4 Address. . . . . . . . . . . : 192.168.1.100
+
+2. Configure Apache to Accept Connections
+- open C:\xampp\apache\conf\httpd.conf
+- must be Listen 80
+- Find the block
+<Directory "C:/xampp/htdocs">
+    Options Indexes FollowSymLinks Includes ExecCGI
+    AllowOverride All
+    Require local
+</Directory>
+- change from Require local to Require all granted
+3. Restart Apache Server
+
+4. Test Connection From Client Devices
+- Make sure client devices (mobile, desktop) are connected to the same local network (same WiFi or wired LAN).
+- Open a browser on the client device.
+- Enter the server IP in the address bar, e.g.:
+http://192.168.1.100/systempos/login.php
+
+Troubleshooting
+- Make sure the server’s firewall is allowing incoming connections on port 80.
+- To test if the port is open, you can use apps like Ping or Telnet on client devices.
+- If needed, add firewall rules on your server:
+On Windows:
+Go to Windows Defender Firewall > Advanced settings > Inbound Rules > New Rule, allow TCP port 80.

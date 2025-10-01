@@ -232,6 +232,9 @@ class Database
             $quantity = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT);
             $min_stock = filter_input(INPUT_POST, 'min_stock', FILTER_SANITIZE_NUMBER_INT);
 
+            date_default_timezone_set('Asia/Manila');
+            $philippineDateTime = date('Y-m-d H:i:s');
+
             if (
                 empty($item_name) || empty($barcode) || empty($category_id) || empty($supplier_id) ||
                 $cost_price === null || $selling_price === null || $quantity === null || $min_stock === null
@@ -274,8 +277,8 @@ class Database
                 return;
             }
 
-            $sql = $this->conn()->prepare("INSERT INTO items (item_name, barcode, description, category_id, supplier_id, cost_price, selling_price, quantity, min_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock]);
+            $sql = $this->conn()->prepare("INSERT INTO items (item_name, barcode, description, category_id, supplier_id, cost_price, selling_price, quantity, min_stock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $philippineDateTime]);
 
             $_SESSION['create-success'] = "Successfully added item: " . htmlspecialchars($item_name);
         }
@@ -296,6 +299,9 @@ class Database
             $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_VALIDATE_FLOAT);
             $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
             $min_stock = filter_input(INPUT_POST, 'min_stock', FILTER_VALIDATE_INT);
+
+            date_default_timezone_set('Asia/Manila');
+            $philippineDateTime = date('Y-m-d H:i:s');
 
             if (
                 empty($item_name) || empty($barcode) || $selling_price === false ||
@@ -320,10 +326,10 @@ class Database
             } else {
                 $sql = $this->conn()->prepare("
                 UPDATE items 
-                SET item_name = ?, barcode = ?, description = ?, category_id = ?, supplier_id = ?, cost_price = ?, selling_price = ?, quantity = ?, min_stock = ?
+                SET item_name = ?, barcode = ?, description = ?, category_id = ?, supplier_id = ?, cost_price = ?, selling_price = ?, quantity = ?, min_stock = ?, updated_at = ?
                 WHERE item_id = ?
             ");
-                $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $item_id]);
+                $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $philippineDateTime, $item_id]);
                 $_SESSION['create-success'] = "Item '{$item_name}' has been updated successfully.";
             }
         }
@@ -617,7 +623,10 @@ class Database
             $item_id = filter_input(INPUT_POST, 'item_id', FILTER_VALIDATE_INT);
             $adjust_qty = filter_input(INPUT_POST, 'adjust_qty', FILTER_VALIDATE_INT);
             $reason = filter_input(INPUT_POST, 'reason_adjustment', FILTER_SANITIZE_STRING);
-            $adjust_by = $_SESSION['user_id'] ?? null;  // Use the correct session key for user ID
+            $adjust_by = $_SESSION['user_id'] ?? null;
+
+            date_default_timezone_set('Asia/Manila');
+            $philippineDateTime = date('Y-m-d H:i:s');
 
             if (!$item_id || $adjust_qty === false || empty($reason) || !$adjust_by) {
                 $errors[] = "Please fill in all required fields correctly.";
@@ -648,9 +657,9 @@ class Database
                     $stmt = $conn->prepare("
                     INSERT INTO item_stock_adjustment 
                     (item_id, previous_quantity, new_quantity, reason_adjustment, adjust_by, created_at) 
-                    VALUES (?, ?, ?, ?, ?, NOW())
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ");
-                    $stmt->execute([$item_id, $previous_quantity, $new_quantity, $reason, $adjust_by]);
+                    $stmt->execute([$item_id, $previous_quantity, $new_quantity, $reason, $adjust_by, $philippineDateTime]);
 
                     // Update item quantity
                     $stmt = $conn->prepare("UPDATE items SET quantity = ? WHERE item_id = ?");
@@ -787,10 +796,13 @@ class Database
                     return;
                 }
 
+                date_default_timezone_set('Asia/Manila');
+                $philippineDateTime = date('Y-m-d H:i:s');
+
                 // Insert into sales table, including transaction_id
                 $stmt = $conn->prepare("
                 INSERT INTO sales (transaction_id, customer_name, grand_total, cash_received, cash_change, date, sold_by)
-                VALUES (?, ?, ?, ?, ?, NOW(), ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
                 $stmt->execute([
                     $transaction_id, // Unique transaction_id
@@ -798,6 +810,7 @@ class Database
                     $grand_total,    // Grand total
                     $cash_received,  // Cash received
                     $change,         // Cash change
+                    $philippineDateTime,
                     $user_id         // Sold by (user ID)
                 ]);
 
@@ -805,8 +818,8 @@ class Database
 
                 // Insert sale items
                 $itemStmt = $conn->prepare("
-                INSERT INTO sale_items (sale_id, item_id, quantity, unit_price, line_total)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO sale_items (sale_id, item_id, quantity, unit_price, line_total, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
                 $stockUpdate = $conn->prepare("
                 UPDATE items SET quantity = quantity - ? WHERE item_id = ?
@@ -818,7 +831,8 @@ class Database
                         $item['item_id'],
                         $item['quantity'],
                         $item['unit_price'],
-                        $item['line_total']
+                        $item['line_total'],
+                        $philippineDateTime
                     ]);
 
                     $stockUpdate->execute([
@@ -837,6 +851,71 @@ class Database
             }
         }
     }
+
+    public function getTodaysSalesStats()
+    {
+        date_default_timezone_set('Asia/Manila');
+
+        $todayStart = date('Y-m-d') . ' 00:00:00';
+        $todayEnd = date('Y-m-d') . ' 23:59:59';
+
+        $yesterdayStart = date('Y-m-d', strtotime('-1 day')) . ' 00:00:00';
+        $yesterdayEnd = date('Y-m-d', strtotime('-1 day')) . ' 23:59:59';
+
+        try {
+            $conn = $this->conn();
+
+            $stmt = $conn->prepare("
+            SELECT 
+                -- Today's
+                SUM(CASE WHEN date BETWEEN :todayStart AND :todayEnd THEN grand_total ELSE 0 END) AS today_revenue,
+                COUNT(CASE WHEN date BETWEEN :todayStart AND :todayEnd THEN 1 END) AS today_count,
+                
+                -- Yesterday's
+                SUM(CASE WHEN date BETWEEN :yesterdayStart AND :yesterdayEnd THEN grand_total ELSE 0 END) AS yesterday_revenue
+            FROM sales
+        ");
+
+            $stmt->execute([
+                ':todayStart' => $todayStart,
+                ':todayEnd' => $todayEnd,
+                ':yesterdayStart' => $yesterdayStart,
+                ':yesterdayEnd' => $yesterdayEnd
+            ]);
+
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $todayCount = (int) $result['today_count'];
+            $todayRevenue = (float) $result['today_revenue'];
+            $yesterdayRevenue = (float) $result['yesterday_revenue'];
+
+            $avgTransaction = $todayCount > 0 ? $todayRevenue / $todayCount : 0;
+
+            // Calculate growth from yesterday
+            if ($yesterdayRevenue > 0) {
+                $growthPercent = (($todayRevenue - $yesterdayRevenue) / $yesterdayRevenue) * 100;
+            } else {
+                $growthPercent = $todayRevenue > 0 ? 100 : 0;
+            }
+
+            return [
+                'transaction_count' => $todayCount,
+                'today_revenue' => $todayRevenue,
+                'avg_transaction' => $avgTransaction,
+                'growth_percent' => round($growthPercent)
+            ];
+
+        } catch (PDOException $e) {
+            return [
+                'transaction_count' => 0,
+                'today_revenue' => 0,
+                'avg_transaction' => 0,
+                'growth_percent' => 0
+            ];
+        }
+    }
+
+
 
 
     public function remove_from_cart()
