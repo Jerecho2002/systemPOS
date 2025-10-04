@@ -162,7 +162,6 @@ $purchase_orders = $database->select_purchase_orders();
                   <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <p class="text-sm font-medium text-gray-900"><?= $sp['supplier_name']; ?></p>
-                      <p class="text-xs text-gray-500">25 products</p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <p class="text-gray-900 font-medium"><?= $sp['order_count'] ?></p>

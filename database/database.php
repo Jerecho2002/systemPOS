@@ -222,7 +222,7 @@ class Database
         $errors = [];
 
         if (isset($_POST['create_item'])) {
-            $item_name = filter_input(INPUT_POST, 'item_name', FILTER_SANITIZE_STRING);
+            $item_name = $_POST['item_name'];
             $barcode = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
             $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
             $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
@@ -899,14 +899,16 @@ class Database
             }
 
             return [
+                'period' => 'Daily',
                 'transaction_count' => $todayCount,
-                'today_revenue' => $todayRevenue,
+                'total_sales' => $todayRevenue,
                 'avg_transaction' => $avgTransaction,
                 'growth_percent' => round($growthPercent)
             ];
 
         } catch (PDOException $e) {
             return [
+                'period' => 'Daily',
                 'transaction_count' => 0,
                 'today_revenue' => 0,
                 'avg_transaction' => 0,
@@ -915,7 +917,458 @@ class Database
         }
     }
 
+    public function getWeeklySalesStats() 
+    {
+        date_default_timezone_set('Asia/Manila');
 
+        $startOfWeek = date('Y-m-d', strtotime('monday this week')) . ' 00:00:00';
+        $endOfWeek = date('Y-m-d', strtotime('sunday this week')) . ' 23:59:59';
+
+        $startOfLastWeek = date('Y-m-d', strtotime('monday last week')) . ' 00:00:00';
+        $endOfLastWeek = date('Y-m-d', strtotime('sunday last week')) . ' 23:59:59';
+
+        try {
+            $conn = $this->conn();
+
+            $stmt = $conn->prepare("
+                SELECT 
+                    SUM(CASE WHEN date BETWEEN :start AND :end THEN grand_total ELSE 0 END) AS current_sales,
+                    COUNT(CASE WHEN date BETWEEN :start AND :end THEN 1 END) AS current_count,
+                    SUM(CASE WHEN date BETWEEN :lastStart AND :lastEnd THEN grand_total ELSE 0 END) AS last_sales
+                FROM sales
+            ");
+            $stmt->execute([
+                ':start' => $startOfWeek,
+                ':end' => $endOfWeek,
+                ':lastStart' => $startOfLastWeek,
+                ':lastEnd' => $endOfLastWeek
+            ]);
+
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $currentCount = (int) $result['current_count'];
+            $currentSales = (float) $result['current_sales'];
+            $lastSales = (float) $result['last_sales'];
+
+            $avg = $currentCount > 0 ? $currentSales / $currentCount : 0;
+            $growth = $lastSales > 0 ? (($currentSales - $lastSales) / $lastSales) * 100 : ($currentSales > 0 ? 100 : 0);
+
+            return [
+                'period' => 'This Week',
+                'transaction_count' => $currentCount,
+                'total_sales' => $currentSales,
+                'avg_transaction' => $avg,
+                'growth_percent' => round($growth)
+            ];
+
+        } catch (PDOException $e) {
+            return [
+                'period' => 'This Week',
+                'transaction_count' => 0,
+                'total_sales' => 0,
+                'avg_transaction' => 0,
+                'growth_percent' => 0
+            ];
+        }
+    }
+
+    public function getMonthlySalesStats() 
+    {
+        date_default_timezone_set('Asia/Manila');
+
+        $currentMonthStart = date('Y-m-01') . ' 00:00:00';
+        $currentMonthEnd = date('Y-m-t') . ' 23:59:59';
+
+        $previousMonthStart = date('Y-m-01', strtotime('first day of last month')) . ' 00:00:00';
+        $previousMonthEnd = date('Y-m-t', strtotime('last day of last month')) . ' 23:59:59';
+
+        try {
+            $conn = $this->conn();
+
+            $stmt = $conn->prepare("
+                SELECT 
+                    -- Current month
+                    SUM(CASE WHEN date BETWEEN :currentMonthStart AND :currentMonthEnd THEN grand_total ELSE 0 END) AS current_revenue,
+                    COUNT(CASE WHEN date BETWEEN :currentMonthStart AND :currentMonthEnd THEN 1 END) AS current_count,
+
+                    -- Previous month
+                    SUM(CASE WHEN date BETWEEN :previousMonthStart AND :previousMonthEnd THEN grand_total ELSE 0 END) AS previous_revenue
+                FROM sales
+            ");
+
+            $stmt->execute([
+                ':currentMonthStart' => $currentMonthStart,
+                ':currentMonthEnd' => $currentMonthEnd,
+                ':previousMonthStart' => $previousMonthStart,
+                ':previousMonthEnd' => $previousMonthEnd
+            ]);
+
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $currentRevenue = (float) $result['current_revenue'];
+            $currentCount = (int) $result['current_count'];
+            $previousRevenue = (float) $result['previous_revenue'];
+
+            $avgTransaction = $currentCount > 0 ? $currentRevenue / $currentCount : 0;
+
+            // Growth percentage
+            if ($previousRevenue > 0) {
+                $growthPercent = (($currentRevenue - $previousRevenue) / $previousRevenue) * 100;
+            } else {
+                $growthPercent = $currentRevenue > 0 ? 100 : 0;
+            }
+
+            return [
+                'total_sales' => $currentRevenue,
+                'transaction_count' => $currentCount,
+                'avg_transaction' => round($avgTransaction, 2),
+                'growth_percent' => round($growthPercent, 2),
+                'period' => date('F Y') // e.g. "October 2025"
+            ];
+
+        } catch (PDOException $e) {
+            return [
+                'total_sales' => 0,
+                'transaction_count' => 0,
+                'avg_transaction' => 0,
+                'growth_percent' => 0,
+                'period' => date('F Y')
+            ];
+        }
+    }
+
+    public function getYearlySalesStats() 
+    {
+        date_default_timezone_set('Asia/Manila');
+
+        $startOfYear = date('Y') . '-01-01 00:00:00';
+        $endOfYear = date('Y') . '-12-31 23:59:59';
+
+        $lastYear = date('Y', strtotime('-1 year'));
+        $startOfLastYear = $lastYear . '-01-01 00:00:00';
+        $endOfLastYear = $lastYear . '-12-31 23:59:59';
+
+        try {
+            $conn = $this->conn();
+
+            $stmt = $conn->prepare("
+                SELECT 
+                    SUM(CASE WHEN date BETWEEN :start AND :end THEN grand_total ELSE 0 END) AS current_sales,
+                    COUNT(CASE WHEN date BETWEEN :start AND :end THEN 1 END) AS current_count,
+                    SUM(CASE WHEN date BETWEEN :lastStart AND :lastEnd THEN grand_total ELSE 0 END) AS last_sales
+                FROM sales
+            ");
+
+            $stmt->execute([
+                ':start' => $startOfYear,
+                ':end' => $endOfYear,
+                ':lastStart' => $startOfLastYear,
+                ':lastEnd' => $endOfLastYear
+            ]);
+
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $currentCount = (int) $result['current_count'];
+            $currentSales = (float) $result['current_sales'];
+            $lastSales = (float) $result['last_sales'];
+
+            $avg = $currentCount > 0 ? $currentSales / $currentCount : 0;
+            $growth = $lastSales > 0 ? (($currentSales - $lastSales) / $lastSales) * 100 : ($currentSales > 0 ? 100 : 0);
+
+            return [
+                'period' => 'This Year',
+                'transaction_count' => $currentCount,
+                'total_sales' => $currentSales,
+                'avg_transaction' => $avg,
+                'growth_percent' => round($growth)
+            ];
+
+        } catch (PDOException $e) {
+            return [
+                'period' => 'This Year',
+                'transaction_count' => 0,
+                'total_sales' => 0,
+                'avg_transaction' => 0,
+                'growth_percent' => 0
+            ];
+        }
+    }
+
+    public function getLast7DaysSalesTrend() {
+        date_default_timezone_set('Asia/Manila');
+
+        $conn = $this->conn();
+
+        $dates = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $dates[] = date('Y-m-d', strtotime("-$i days"));
+        }
+
+        $stmt = $conn->prepare("
+            SELECT DATE(date) as sale_date, 
+                SUM(grand_total) as total_sales, 
+                COUNT(*) as transaction_count
+            FROM sales
+            WHERE DATE(date) BETWEEN ? AND ?
+            GROUP BY DATE(date)
+            ORDER BY sale_date
+        ");
+
+        $stmt->execute([$dates[0], $dates[6]]);
+
+
+        $rawData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Initialize array with 0s for days with no sales
+        $data = [];
+        foreach ($dates as $d) {
+            $data[$d] = ['total_sales' => 0, 'transaction_count' => 0];
+        }
+
+        foreach ($rawData as $row) {
+            $data[$row['sale_date']] = [
+                'total_sales' => (float) $row['total_sales'],
+                'transaction_count' => (int) $row['transaction_count']
+            ];
+        }
+
+        return $data;
+    }
+
+    public function getTopSellingProducts($limit = 5)
+    {
+        $conn = $this->conn();
+
+        $stmt = $conn->prepare("
+            SELECT 
+                i.item_name,
+                SUM(si.quantity) AS total_quantity
+            FROM sale_items si
+            JOIN items i ON si.item_id = i.item_id
+            GROUP BY si.item_id
+            ORDER BY total_quantity DESC
+            LIMIT ?
+        ");
+        $stmt->bindValue(1, (int)$limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Calculate total of all quantities for percentage
+        $totalQty = array_sum(array_column($results, 'total_quantity'));
+
+        foreach ($results as &$row) {
+            $row['percentage'] = $totalQty > 0 
+                ? round(($row['total_quantity'] / $totalQty) * 100, 2)
+                : 0;
+        }
+
+        return $results;
+    }
+
+    public function getPeakSalesHours()
+    {
+        $conn = $this->conn();
+
+        $stmt = $conn->prepare("
+            SELECT 
+                HOUR(date) as hour,
+                COUNT(*) as total_sales
+            FROM sales
+            GROUP BY HOUR(date)
+            ORDER BY total_sales DESC
+        ");
+        $stmt->execute();
+        $rawData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Define time blocks (2-hour range)
+        $timeBlocks = [
+            '8:00 AM - 10:00 AM'   => [8, 9],
+            '10:00 AM - 12:00 PM'  => [10, 11],
+            '12:00 PM - 2:00 PM'   => [12, 13],
+            '2:00 PM - 4:00 PM'    => [14, 15],
+            '4:00 PM - 6:00 PM'    => [16, 17],
+            '6:00 PM - 8:00 PM'    => [18, 19],
+            '8:00 PM - 10:00 PM'   => [20, 21],
+        ];
+
+        // Initialize counts
+        $blockSales = [];
+        foreach ($timeBlocks as $label => $range) {
+            $blockSales[$label] = 0;
+        }
+
+        // Aggregate sales count into time blocks
+        foreach ($rawData as $row) {
+            $hour = (int) $row['hour'];
+            $count = (int) $row['total_sales'];
+
+            foreach ($timeBlocks as $label => $range) {
+                if ($hour >= $range[0] && $hour <= $range[1]) {
+                    $blockSales[$label] += $count;
+                    break;
+                }
+            }
+        }
+
+        // Sort by most sales
+        arsort($blockSales);
+
+        // Get top 3 blocks and assign levels
+        $levels = ['Peak', 'High', 'Medium'];
+        $colors = ['red', 'orange', 'yellow'];
+        $result = [];
+
+        $i = 0;
+        foreach ($blockSales as $label => $count) {
+            if ($count > 0 && $i < 3) {
+                $result[] = [
+                    'time_range' => $label,
+                    'level' => $levels[$i],
+                    'color' => $colors[$i],
+                    'count' => $count
+                ];
+                $i++;
+            }
+        }
+
+        return $result;
+    }
+
+    public function getMonthlyOrdersSalesProfits() {
+        $conn = $this->conn();
+
+        // 1. Get Sales Data (month, total sales, sales count)
+        $stmt = $conn->prepare("
+            SELECT
+                DATE_FORMAT(s.date, '%Y-%m') AS month,
+                SUM(s.grand_total) AS total_sales,
+                COUNT(s.sale_id) AS sales_count
+            FROM sales s
+            GROUP BY month
+        ");
+        $stmt->execute();
+        $salesDataRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $salesData = [];
+        foreach ($salesDataRaw as $row) {
+            $salesData[$row['month']] = [
+                'total_sales' => (float) $row['total_sales'],
+                'sales_count' => (int) $row['sales_count'],
+            ];
+        }
+
+        // 2. Get Cost Data (month, total cost)
+        $stmt = $conn->prepare("
+            SELECT
+                DATE_FORMAT(s.date, '%Y-%m') AS month,
+                SUM(si.quantity * i.cost_price) AS total_cost
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.sale_id
+            JOIN items i ON si.item_id = i.item_id
+            GROUP BY month
+        ");
+        $stmt->execute();
+        $costDataRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $costData = [];
+        foreach ($costDataRaw as $row) {
+            $costData[$row['month']] = (float) $row['total_cost'];
+        }
+
+        // 3. Get Orders Data (month, total orders)
+        $stmt = $conn->prepare("
+            SELECT
+                DATE_FORMAT(po.date, '%Y-%m') AS month,
+                SUM(po.grand_total) AS total_orders
+            FROM purchase_orders po
+            WHERE po.status = 'Received'
+            GROUP BY month
+        ");
+        $stmt->execute();
+        $orderDataRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $orderData = [];
+        foreach ($orderDataRaw as $row) {
+            $orderData[$row['month']] = (float) $row['total_orders'];
+        }
+
+        // 4. Merge all months and prepare final data
+        $allMonths = array_unique(array_merge(
+            array_keys($salesData),
+            array_keys($costData),
+            array_keys($orderData)
+        ));
+        sort($allMonths);
+
+        $result = [];
+        foreach ($allMonths as $month) {
+            $total_sales = isset($salesData[$month]) ? $salesData[$month]['total_sales'] : 0;
+            $total_orders = isset($orderData[$month]) ? $orderData[$month] : 0;
+            $total_cost = isset($costData[$month]) ? $costData[$month] : 0;
+            $profit = $total_sales - $total_cost;
+
+            $result[] = [
+                'month' => $month,
+                'orders' => $total_orders,
+                'sales' => $total_sales,
+                'profit' => $profit,
+            ];
+        }
+
+        return $result;
+    }
+
+    public function getTopProductsByValue($limit = 5)
+    {
+        $conn = $this->conn();
+
+        $sql = $conn->prepare("
+            SELECT 
+                i.item_name,
+                SUM(poi.quantity) AS total_qty,
+                i.cost_price,
+                i.selling_price,
+                (i.cost_price * SUM(poi.quantity)) AS total_value,
+                ROUND(((i.selling_price - i.cost_price) / i.selling_price) * 100, 1) AS margin_percentage
+            FROM purchase_order_items poi
+            JOIN items i ON poi.item_id = i.item_id
+            JOIN purchase_orders po ON poi.purchase_order_id = po.purchase_order_id
+            WHERE po.status != 'Cancelled' AND po.is_active = 1
+            GROUP BY i.item_id
+            ORDER BY total_value DESC
+            LIMIT $limit
+        ");
+
+        $sql->execute();
+        return $sql->fetchAll();
+    }
+
+
+    public function select_sales()
+    {
+        $sql = $this->conn()->prepare("
+            SELECT 
+                sales.sale_id,
+                sales.transaction_id,
+                sales.customer_name,
+                sales.grand_total,
+                DATE_FORMAT(sales.date, '%Y-%m-%d') as date,
+                DATE_FORMAT(sales.date, '%H:%i:%s') as time
+            FROM sales
+            ORDER BY sales.date DESC
+        ");
+        $sql->execute();
+        return $sql->fetchAll();
+    }
+
+    public function select_sale_items(){
+        $sql = $this->conn()->prepare('SELECT * FROM sale_items');
+        $sql->execute();
+        $sale_items = $sql->fetchAll();
+        
+        return $sale_items;
+    }
 
 
     public function remove_from_cart()

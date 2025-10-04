@@ -108,8 +108,14 @@ $grand_total = $subtotal;
             <?php foreach ($items as $item): ?>
               <?php if ($item['quantity'] < 0)
                 continue; ?>
-              <button type="button" class="product-item w-full text-left"
-                onclick="openQuantityModal(<?= $item['item_id']; ?>, '<?= htmlspecialchars($item['item_name'], ENT_QUOTES); ?>', <?= $item['quantity']; ?>)"
+              <?php
+                $jsItemName = addslashes($item['item_name']);
+              ?>
+              <button 
+                type="button" 
+                class="product-item w-full text-left <?= $item['quantity'] <= 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer' ?>" 
+                <?= $item['quantity'] <= 0 ? 'disabled' : '' ?>
+                <?= $item['quantity'] > 0 ? "onclick=\"openQuantityModal({$item['item_id']}, '{$jsItemName}', {$item['quantity']})\"" : '' ?>
                 <?= $item['quantity'] <= 0 ? 'disabled class="opacity-50 cursor-not-allowed"' : '' ?>>
                 <div class="p-4 border rounded-lg hover:shadow cursor-pointer">
                   <p class="font-medium product-name"><?= $item['item_name']; ?></p>
@@ -157,7 +163,7 @@ $grand_total = $subtotal;
             <?php foreach ($cart as $item): ?>
               <li class='py-2 flex justify-between items-center'>
                 <div>
-                  <p class='font-medium'><?= htmlspecialchars($item['name']); ?></p>
+                  <p class='font-medium'><?= $item['name']; ?></p>
                   <p class='text-xs text-gray-500'>Qty: <?= $item['quantity']; ?> ×
                     ₱<?= number_format($item['unit_price'], 2); ?></p>
                 </div>
@@ -287,8 +293,6 @@ $grand_total = $subtotal;
       </form>
     </div>
   </div>
-
-
 
   <!-- Quantity Modal -->
   <div id="quantityModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">

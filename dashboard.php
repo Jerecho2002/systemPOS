@@ -43,7 +43,7 @@ $items = $database->select_items();
         </div>
         <div class="bg-white rounded-xl shadow p-4">
           <p class="text-gray-500 text-sm">Today's Revenue</p>
-          <h4 class="text-2xl font-bold">₱<?= number_format($stats['today_revenue'], 2) ?></h4>
+          <h4 class="text-2xl font-bold">₱<?= number_format($stats['total_sales'], 2) ?></h4>
           <p class="text-xs text-green-600"><?= $stats['growth_percent'] ?>% from yesterday</p>
         </div>
         <div class="bg-white rounded-xl shadow p-4">

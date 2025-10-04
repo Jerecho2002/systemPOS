@@ -1,0 +1,6 @@
+Inventory Reports
+
+profit = selling price - cost price
+Profit in a month = (selling price - cost price) * quantity
+margin = (profit over or ÷ selling price) * 100
+

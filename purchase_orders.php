@@ -19,7 +19,7 @@ $items = $database->select_items();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Purchase Orders</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/tailwind.min.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
     .status-label {
@@ -175,17 +175,18 @@ $items = $database->select_items();
               </tr>
             </thead>
             <?php
-            // Build item count per purchase_order_id
+            // Count how many items (quantities) per purchase_order_id
             $purchase_items_count = [];
 
             foreach ($purchase_order_items as $poi) {
               $po_id = $poi['purchase_order_id'];
+              $qty = (int)$poi['quantity'];
 
               if (!isset($purchase_items_count[$po_id])) {
                 $purchase_items_count[$po_id] = 0;
               }
 
-              $purchase_items_count[$po_id]++;
+              $purchase_items_count[$po_id] += $qty;
             }
             ?>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -202,12 +203,12 @@ $items = $database->select_items();
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <?= date('F j, Y, g:i A', strtotime($po['date'])) ?>
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <?php
-                    $count = count($po['items'] ?? []);
+                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <?php
+                    $count = $purchase_items_count[$po['purchase_order_id']] ?? 0;
                     echo $count . ' item' . ($count !== 1 ? 's' : '');
-                    ?>
-                  </td>
+                  ?>
+                </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     ₱<?= number_format($po['grand_total'], 2) ?>
                   </td>
@@ -241,6 +242,7 @@ $items = $database->select_items();
                       data-status="<?= htmlspecialchars($po['status']) ?>"
                       data-created-by="<?= htmlspecialchars($po['created_by']) ?>"
                       data-items='<?= json_encode($po['items']) ?>'>
+                      <!-- View icon -->
                       <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                         <path fill-rule="evenodd"
@@ -248,39 +250,47 @@ $items = $database->select_items();
                           clip-rule="evenodd" />
                       </svg>
                     </button>
-                    <?php if ($po['status'] != "Cancelled"): ?>
-                      <button class="text-red-500 hover:text-red-700 openCancelPoModal"
-                        data-id="<?= $po['purchase_order_id'] ?>" data-number="<?= htmlspecialchars($po['po_number']) ?>"
-                        title="Cancel Purchase Order">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd"
-                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                            clip-rule="evenodd" />
-                        </svg>
-                      </button>
-                    <?php endif; ?>
-                    <?php if ($po['status'] == "Cancelled"): ?>
-                      <button class="text-red-500 hover:text-red-700 openArchivePoModal"
-                        data-id="<?= $po['purchase_order_id'] ?>" data-name="<?= htmlspecialchars($po['po_number']) ?>"
-                        title="Archive Purchase Order">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd"
-                            d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                            clip-rule="evenodd" />
-                        </svg>
-                      </button>
-                    <?php endif; ?>
-                    <?php if ($po['status'] != "Received" && $po['status'] != "Cancelled"): ?>
-                      <button class="text-green-500 hover:text-green-700 openReceivePoModal"
-                        data-id="<?= $po['purchase_order_id'] ?>" data-name="<?= htmlspecialchars($po['po_number']) ?>"
-                        title="Mark this PO as received">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd"
-                            d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
-                            clip-rule="evenodd" />
-                        </svg>
-                      </button>
-                    <?php endif; ?>
+                    <?php 
+                        $status = $po['status']; 
+                        $poId = $po['purchase_order_id'];
+                        $poNumber = htmlspecialchars($po['po_number']);
+                      ?>
+
+                      <?php if ($status !== "Cancelled" && $status !== "Received"): ?>
+                        <button class="text-red-500 hover:text-red-700 openCancelPoModal"
+                          data-id="<?= $poId ?>" data-number="<?= $poNumber ?>"
+                          title="Cancel Purchase Order">
+                          <!-- Cancel icon -->
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                              clip-rule="evenodd" />
+                          </svg>
+                        </button>
+
+                        <button class="text-green-500 hover:text-green-700 openReceivePoModal"
+                          data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
+                          title="Mark this PO as received">
+                          <!-- Receive icon -->
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                              d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
+                              clip-rule="evenodd" />
+                          </svg>
+                        </button>
+
+                      <?php else: ?>
+                        <button class="text-red-500 hover:text-red-700 openArchivePoModal"
+                          data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
+                          title="Archive Purchase Order">
+                          <!-- Archive icon -->
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                              d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
+                              clip-rule="evenodd" />
+                          </svg>
+                        </button>
+                      <?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -317,26 +327,27 @@ $items = $database->select_items();
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Items</label>
-          <div id="itemsContainer" class="space-y-2">
-            <div class="grid grid-cols-[2fr_1fr_auto] gap-2 items-center">
+          <div id="itemsContainer" class="space-y-3">
+            <div class="flex space-x-3 items-center">
               <select name="item_id[]" required
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 <option value="">Select item</option>
                 <?php foreach ($items as $item): ?>
-                  <option value="<?php echo $item['item_id']; ?>"><?php echo $item['item_name']; ?></option>
+                  <option value="<?php echo $item['item_id']; ?>"><?php echo htmlspecialchars($item['item_name'], ENT_QUOTES); ?></option>
                 <?php endforeach; ?>
               </select>
+              
               <input type="number" name="quantity[]" min="1" required value="1"
-                class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200" />
+                class="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+              
               <button type="button"
-                class="removeItemBtn text-gray-500 hover:text-red-600 text-xl font-bold leading-none">&times;</button>
+                class="removeItemBtn text-gray-400 hover:text-red-600 text-2xl font-bold leading-none focus:outline-none focus:ring-2 focus:ring-red-500 rounded"
+                aria-label="Remove item">&times;</button>
             </div>
           </div>
-
           <button type="button" id="addItemBtn"
             class="mt-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">+ Add Item</button>
         </div>
-
         <div class="flex justify-end space-x-2 pt-4">
           <button type="button" id="cancelCreatePoModal"
             class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
@@ -534,28 +545,30 @@ $items = $database->select_items();
     });
 
     // Add new item row
-    addItemBtn.addEventListener('click', () => {
-      const newItem = document.createElement('div');
-      newItem.classList.add('grid', 'grid-cols-[2fr_1fr_auto]', 'gap-2', 'items-center');
-      newItem.innerHTML = `
-      <select name="item_id[]" required
-        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
-        <option value="">Select item</option>
-        <?php foreach ($items as $item): ?>
-        <option value="<?php echo $item['item_id']; ?>"><?php echo $item['item_name']; ?></option>
-        <?php endforeach; ?>
-      </select>
-      <input type="number" name="quantity[]" min="1" required value="1"
-        class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200" />
-      <button type="button" class="removeItemBtn text-gray-500 hover:text-red-600 text-xl font-bold leading-none">&times;</button>
-    `;
-      itemsContainer.appendChild(newItem);
+    // Add new item row
+addItemBtn.addEventListener('click', () => {
+  const newItem = document.createElement('div');
+  newItem.classList.add('flex', 'space-x-3', 'items-center');
+  newItem.innerHTML = `
+    <select name="item_id[]" required
+      class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+      <option value="">Select item</option>
+      <?php foreach ($items as $item): ?>
+      <option value="<?php echo $item['item_id']; ?>"><?php echo $item['item_name']; ?></option>
+      <?php endforeach; ?>
+    </select>
+    <input type="number" name="quantity[]" min="1" required value="1"
+      class="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+    <button type="button" class="removeItemBtn text-gray-400 hover:text-red-600 text-2xl font-bold leading-none focus:outline-none focus:ring-2 focus:ring-red-500 rounded" aria-label="Remove item">&times;</button>
+  `;
+  itemsContainer.appendChild(newItem);
 
-      // Attach remove event to the new remove button
-      newItem.querySelector('.removeItemBtn').addEventListener('click', () => {
-        newItem.remove();
-      });
-    });
+  // Attach remove event to the new remove button
+  newItem.querySelector('.removeItemBtn').addEventListener('click', () => {
+    newItem.remove();
+  });
+});
+
 
     // Remove item row
     document.querySelectorAll('.removeItemBtn').forEach(btn => {
