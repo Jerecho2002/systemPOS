@@ -194,30 +194,24 @@ $topProducts = $database->getTopProductsByValue(5);  // Replace $yourObject with
 const ctx = document.getElementById('ordersSalesProfitChart').getContext('2d');
 
 new Chart(ctx, {
-    type: 'line',
+    type: 'bar',
     data: {
         labels: <?= json_encode($months) ?>, // e.g. ["2025-01", "2025-02", ...]
         datasets: [
             {
                 label: 'Orders',
                 data: <?= json_encode($orders) ?>,
-                borderColor: 'rgba(59, 130, 246, 1)', // blue
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                tension: 0.4
+                backgroundColor: 'rgba(59, 130, 246, 0.7)', // blue
             },
             {
                 label: 'Sales',
                 data: <?= json_encode($sales) ?>,
-                borderColor: 'rgba(34, 197, 94, 1)', // green
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                tension: 0.4
+                backgroundColor: 'rgba(34, 197, 94, 0.7)', // green
             },
             {
                 label: 'Profit',
                 data: <?= json_encode($profits) ?>,
-                borderColor: 'rgba(234, 88, 12, 1)', // orange
-                backgroundColor: 'rgba(234, 88, 12, 0.1)',
-                tension: 0.4
+                backgroundColor: 'rgba(234, 88, 12, 0.7)', // orange
             }
         ]
     },
@@ -226,6 +220,7 @@ new Chart(ctx, {
         maintainAspectRatio: false,
         scales: {
             x: {
+                stacked: false,
                 ticks: {
                     callback: function(value) {
                         const label = this.getLabelForValue(value);
@@ -257,6 +252,5 @@ new Chart(ctx, {
     }
 });
 </script>
-
 </body>
 </html>

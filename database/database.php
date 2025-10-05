@@ -917,7 +917,7 @@ class Database
         }
     }
 
-    public function getWeeklySalesStats() 
+    public function getWeeklySalesStats()
     {
         date_default_timezone_set('Asia/Manila');
 
@@ -972,7 +972,7 @@ class Database
         }
     }
 
-    public function getMonthlySalesStats() 
+    public function getMonthlySalesStats()
     {
         date_default_timezone_set('Asia/Manila');
 
@@ -1037,7 +1037,7 @@ class Database
         }
     }
 
-    public function getYearlySalesStats() 
+    public function getYearlySalesStats()
     {
         date_default_timezone_set('Asia/Manila');
 
@@ -1094,7 +1094,8 @@ class Database
         }
     }
 
-    public function getLast7DaysSalesTrend() {
+    public function getLast7DaysSalesTrend()
+    {
         date_default_timezone_set('Asia/Manila');
 
         $conn = $this->conn();
@@ -1149,7 +1150,7 @@ class Database
             ORDER BY total_quantity DESC
             LIMIT ?
         ");
-        $stmt->bindValue(1, (int)$limit, PDO::PARAM_INT);
+        $stmt->bindValue(1, (int) $limit, PDO::PARAM_INT);
         $stmt->execute();
 
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1158,7 +1159,7 @@ class Database
         $totalQty = array_sum(array_column($results, 'total_quantity'));
 
         foreach ($results as &$row) {
-            $row['percentage'] = $totalQty > 0 
+            $row['percentage'] = $totalQty > 0
                 ? round(($row['total_quantity'] / $totalQty) * 100, 2)
                 : 0;
         }
@@ -1183,13 +1184,13 @@ class Database
 
         // Define time blocks (2-hour range)
         $timeBlocks = [
-            '8:00 AM - 10:00 AM'   => [8, 9],
-            '10:00 AM - 12:00 PM'  => [10, 11],
-            '12:00 PM - 2:00 PM'   => [12, 13],
-            '2:00 PM - 4:00 PM'    => [14, 15],
-            '4:00 PM - 6:00 PM'    => [16, 17],
-            '6:00 PM - 8:00 PM'    => [18, 19],
-            '8:00 PM - 10:00 PM'   => [20, 21],
+            '8:00 AM - 10:00 AM' => [8, 9],
+            '10:00 AM - 12:00 PM' => [10, 11],
+            '12:00 PM - 2:00 PM' => [12, 13],
+            '2:00 PM - 4:00 PM' => [14, 15],
+            '4:00 PM - 6:00 PM' => [16, 17],
+            '6:00 PM - 8:00 PM' => [18, 19],
+            '8:00 PM - 10:00 PM' => [20, 21],
         ];
 
         // Initialize counts
@@ -1235,7 +1236,8 @@ class Database
         return $result;
     }
 
-    public function getMonthlyOrdersSalesProfits() {
+    public function getMonthlyOrdersSalesProfits()
+    {
         $conn = $this->conn();
 
         // 1. Get Sales Data (month, total sales, sales count)
@@ -1362,11 +1364,12 @@ class Database
         return $sql->fetchAll();
     }
 
-    public function select_sale_items(){
+    public function select_sale_items()
+    {
         $sql = $this->conn()->prepare('SELECT * FROM sale_items');
         $sql->execute();
         $sale_items = $sql->fetchAll();
-        
+
         return $sale_items;
     }
 
@@ -1389,6 +1392,10 @@ class Database
         $errors = [];
         if (isset($_POST['create_category'])) {
             $category_name = filter_input(INPUT_POST, 'category_name', FILTER_SANITIZE_STRING);
+            $category_description = filter_input(INPUT_POST, 'category_description', FILTER_SANITIZE_STRING);
+
+            date_default_timezone_set('Asia/Manila');
+            $philippineDateTime = date('Y-m-d H:i:s');
 
             $query = $this->conn()->prepare("SELECT category_name FROM categories WHERE category_name = ?");
             $query->execute([$category_name]);
@@ -1407,12 +1414,72 @@ class Database
             if (!empty($errors)) {
                 $_SESSION['create-error'] = implode("<br><br>", $errors);
             } else {
-                $sql = $this->conn()->prepare("INSERT INTO categories (`category_name`) VALUES (?)");
-                $sql->execute([$category_name]);
+                $sql = $this->conn()->prepare("INSERT INTO categories (category_name, category_description, created_at) VALUES (?, ?, ?)");
+                $sql->execute([$category_name, $category_description, $philippineDateTime]);
                 $_SESSION['create-success'] = "Successfully added " . $category_name . " to category";
             }
         }
     }
+
+    public function update_category()
+    {
+        $errors = [];
+
+        if (isset($_POST['update_category'])) {
+            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
+            $category_name = filter_input(INPUT_POST, 'category_name', FILTER_SANITIZE_STRING);
+            $category_description = filter_input(INPUT_POST, 'category_description', FILTER_SANITIZE_STRING);
+
+            date_default_timezone_set('Asia/Manila');
+            $philippineDateTime = date('Y-m-d H:i:s');
+
+            if (empty($category_name)) {
+                $errors[] = "Do not leave the category name empty.";
+            } elseif (strlen($category_name) > 30) {
+                $errors[] = "Category name is too long. Max 30 characters allowed.";
+            }
+
+            $query = $this->conn()->prepare("SELECT category_name FROM categories WHERE category_name = ? AND category_id != ?");
+            $query->execute([$category_name, $category_id]);
+            $check_category_name = $query->fetch();
+
+            if ($check_category_name) {
+                $errors[] = "Category name is already taken.";
+            }
+
+            if (!empty($errors)) {
+                $_SESSION['create-error'] = implode("<br><br>", $errors);
+            } else {
+                $sql = $this->conn()->prepare("
+                UPDATE categories 
+                SET category_name = ?, category_description = ?, updated_at = ?
+                WHERE category_id = ?
+            ");
+                $sql->execute([$category_name, $category_description, $category_id, $philippineDateTime]);
+
+                $_SESSION['create-success'] = "Successfully updated category '{$category_name}'.";
+            }
+        }
+    }
+
+    public function delete_category()
+    {
+        if (isset($_POST['delete_category'])) {
+            $category_id = filter_input(INPUT_POST, 'delete_category_id', FILTER_SANITIZE_NUMBER_INT);
+
+            if (!$category_id) {
+                $_SESSION['create-error'] = "Invalid category ID.";
+                return;
+            }
+
+            $query = $this->conn()->prepare("DELETE FROM categories WHERE category_id = ?");
+            $query->execute([$category_id]);
+
+            $_SESSION['create-success'] = "Category deleted successfully.";
+        }
+    }
+
+
 
     public function select_categories()
     {

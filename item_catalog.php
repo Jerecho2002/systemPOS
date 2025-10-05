@@ -1,7 +1,6 @@
 <?php
 include "database/database.php";
 $database->login_session();
-$database->create_category();
 $database->create_item();
 $database->update_item();
 $database->delete_item();
@@ -69,9 +68,6 @@ $items = $database->select_items();
         <div class="flex items-center space-x-2">
           <button id="openAddProductModal" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
             + Add Item
-          </button>
-          <button id="openAddCategoryModal" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
-            + Add Category
           </button>
         </div>
       </div>
@@ -208,36 +204,6 @@ $items = $database->select_items();
       </div>
     </section>
   </main>
-
-  <!-- Add Category Modal -->
-  <div id="addCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-md p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold">Add New Category</h3>
-        <button id="closeAddCategoryModal" class="text-gray-500 hover:text-gray-700 text-xl leading-none">
-          &times;
-        </button>
-      </div>
-
-      <form method="POST" class="space-y-4">
-        <div>
-          <label for="category_name" class="block text-sm font-medium text-gray-700">Category Name</label>
-          <input type="text" name="category_name" id="category_name" required
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
-        </div>
-
-        <div class="flex justify-end space-x-2 pt-4">
-          <button type="button" id="cancelCategoryModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button name="create_category" type="submit" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
-            Save Category
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Add Item Modal -->
   <div id="addProductModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
@@ -484,34 +450,6 @@ $items = $database->select_items();
         fetch('unset_alert.php');
       }, 3000);
     }
-  </script>
-
-
-  <!-- Add Category Script -->
-  <script>
-    const openCategoryBtn = document.getElementById('openAddCategoryModal');
-    const closeCategoryBtn = document.getElementById('closeAddCategoryModal');
-    const cancelCategoryBtn = document.getElementById('cancelCategoryModalBtn');
-    const categoryModal = document.getElementById('addCategoryModal');
-
-    openCategoryBtn.addEventListener('click', () => {
-      categoryModal.classList.remove('hidden');
-    });
-
-    closeCategoryBtn.addEventListener('click', () => {
-      categoryModal.classList.add('hidden');
-    });
-
-    cancelCategoryBtn.addEventListener('click', () => {
-      categoryModal.classList.add('hidden');
-    });
-
-    // Optional: close when clicking outside
-    window.addEventListener('click', (e) => {
-      if (e.target === categoryModal) {
-        categoryModal.classList.add('hidden');
-      }
-    });
   </script>
 
   <!-- Add Product Script -->

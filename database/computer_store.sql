@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 28, 2025 at 05:42 PM
+-- Generation Time: Oct 06, 2025 at 01:32 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -29,17 +29,24 @@ SET time_zone = "+00:00";
 
 CREATE TABLE `categories` (
   `category_id` int(11) NOT NULL,
-  `category_name` varchar(100) NOT NULL
+  `category_name` varchar(100) NOT NULL,
+  `category_description` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `categories`
 --
 
-INSERT INTO `categories` (`category_id`, `category_name`) VALUES
-(1, 'Processors & CPUs'),
-(2, 'Motherboards'),
-(3, 'Graphics Cards (GPUs)');
+INSERT INTO `categories` (`category_id`, `category_name`, `category_description`, `created_at`, `updated_at`) VALUES
+(1, 'Processors & CPUs', 'asdasd', '2025-10-05 22:34:02', '2025-10-05 22:59:41'),
+(2, 'Motherboards', '', '2025-10-05 22:34:02', '2025-10-05 22:34:02'),
+(3, 'Graphics Cards (GPUs)', '', '2025-10-05 22:34:02', '2025-10-05 22:34:02'),
+(5, 'Memory (RAM)', '', '2025-10-05 22:42:11', '2025-10-05 22:42:11'),
+(7, 'Storage Devices', '', '2025-10-05 23:01:26', '2025-10-05 23:01:26'),
+(8, 'Power Supplies', '', '2025-10-05 23:01:58', '2025-10-05 23:01:58'),
+(9, 'Monitors', '', '2025-10-05 23:02:17', '2025-10-05 23:02:17');
 
 -- --------------------------------------------------------
 
@@ -67,10 +74,11 @@ CREATE TABLE `items` (
 --
 
 INSERT INTO `items` (`item_id`, `barcode`, `item_name`, `description`, `category_id`, `supplier_id`, `cost_price`, `selling_price`, `quantity`, `min_stock`, `created_at`, `updated_at`) VALUES
-(2, '123456789', 'Intel i5 6th generation', 'Latest CPU in this year', 1, 1, 3000.00, 5000.00, 3, 3, '2025-09-28 02:53:13', '2025-09-28 12:51:05'),
-(3, '245622135', 'Amd A8 7500k', 'The best seller in AMD', 1, 2, 3000.00, 8000.00, 13, 5, '2025-09-28 02:53:13', '2025-09-28 15:06:28'),
-(6, '877895645', 'Logitech G&#39;s HERO', 'These mice typically feature high-quality sensors.', 2, 1, 3000.00, 5000.00, 8, 5, '2025-09-28 02:53:13', '2025-09-28 15:34:56'),
-(7, '123456782', 'Geforce RTX 1050 Ti', 'Latest GPU in 2007', 3, 1, 1000.00, 2000.00, 22, 5, '2025-09-28 02:53:13', '2025-09-28 14:34:01');
+(2, '223456789', 'Intel i5 6th generation', 'Latest CPU in this year', 1, 1, 3000.00, 5000.00, 57, 3, '2025-09-28 02:53:13', '2025-10-05 21:40:42'),
+(3, '245622135', 'Amd A8 7500k', 'The best seller in AMD', 1, 2, 3000.00, 8000.00, 42, 5, '2025-09-28 02:53:13', '2025-10-05 21:40:42'),
+(7, '123456782', 'Geforce RTX 1050 Ti', 'Latest GPU in 2007', 3, 1, 1000.00, 2000.00, 34, 5, '2025-09-28 02:53:13', '2025-10-04 09:21:43'),
+(8, '457986531', 'Intel i9 7th gen', 'Latest Intel in year 2009', 1, 6, 10000.00, 13000.00, 19, 5, '2025-10-01 07:00:48', '2025-10-04 08:05:09'),
+(9, '546886542', 'Logitech G\'s HERO', 'These mice typically feature high-quality sensors.', 2, 2, 3000.00, 5000.00, 90, 5, '2025-10-05 02:05:19', '2025-10-04 10:31:15');
 
 -- --------------------------------------------------------
 
@@ -93,11 +101,9 @@ CREATE TABLE `item_stock_adjustment` (
 --
 
 INSERT INTO `item_stock_adjustment` (`item_stock_adjustment_id`, `item_id`, `previous_quantity`, `new_quantity`, `reason_adjustment`, `adjust_by`, `created_at`) VALUES
-(6, 6, 0, -2, 'Broken items', 2, '2025-09-28 02:02:20'),
-(7, 6, -2, -1, 'Found items', 2, '2025-09-28 02:02:33'),
 (8, 2, 1, -2, 'Defective Items', 2, '2025-09-28 02:05:04'),
 (9, 2, -2, -1, 'Fixed item', 2, '2025-09-28 02:05:20'),
-(10, 6, -2, 8, 'Bought somewhere', 1, '2025-09-28 15:34:56');
+(11, 2, 3, 7, 'Found Items\r\n', 2, '2025-09-30 08:46:07');
 
 -- --------------------------------------------------------
 
@@ -121,16 +127,7 @@ CREATE TABLE `purchase_orders` (
 --
 
 INSERT INTO `purchase_orders` (`purchase_order_id`, `po_number`, `supplier_id`, `grand_total`, `status`, `date`, `created_by`, `is_active`) VALUES
-(26, 'PO-25-09-3641', 2, 34000.00, 'Received', '2025-09-23 13:37:21', 1, 1),
-(27, 'PO-25-09-9118', 2, 75000.00, 'Received', '2025-09-23 14:20:15', 1, 1),
-(28, 'PO-25-09-5011', 1, 9000.00, 'Received', '2025-09-24 10:08:39', 1, 1),
-(29, 'PO-25-09-2657', 1, 35000.00, 'Received', '2025-09-24 10:22:40', 1, 1),
-(30, 'PO-25-09-7085', 1, 30000.00, 'Cancelled', '2025-09-24 10:32:06', 1, 1),
-(31, 'PO-25-09-9277', 2, 15000.00, 'Ordered', '2025-09-24 10:42:33', 1, 1),
-(32, 'PO-25-09-5033', 1, 3000.00, 'Cancelled', '2025-09-24 10:45:08', 1, 1),
-(33, 'PO-25-09-4479', 2, 3000.00, 'Cancelled', '2025-09-24 10:45:14', 1, 1),
-(35, 'PO-25-09-2183', 4, 30000.00, 'Received', '2025-09-27 18:33:42', 2, 1),
-(36, 'PO-25-09-4367', 4, 5000.00, 'Ordered', '2025-09-27 18:42:01', 2, 1);
+(40, 'PO-25-10-5296', 1, 6000.00, 'Received', '2025-10-04 02:57:34', 2, 1);
 
 -- --------------------------------------------------------
 
@@ -152,26 +149,8 @@ CREATE TABLE `purchase_order_items` (
 --
 
 INSERT INTO `purchase_order_items` (`purchase_order_item_id`, `purchase_order_id`, `item_id`, `quantity`, `unit_cost`, `line_total`) VALUES
-(24, 26, 7, 10, 1000.00, 10000.00),
-(25, 26, 3, 5, 3000.00, 15000.00),
-(26, 26, 6, 3, 3000.00, 9000.00),
-(27, 27, 2, 10, 3000.00, 30000.00),
-(28, 27, 3, 5, 3000.00, 15000.00),
-(29, 27, 6, 10, 3000.00, 30000.00),
-(30, 28, 2, 1, 3000.00, 3000.00),
-(31, 28, 3, 1, 3000.00, 3000.00),
-(32, 28, 6, 1, 3000.00, 3000.00),
-(33, 29, 2, 5, 3000.00, 15000.00),
-(34, 29, 6, 5, 3000.00, 15000.00),
-(35, 29, 7, 5, 1000.00, 5000.00),
-(36, 30, 2, 5, 3000.00, 15000.00),
-(37, 30, 6, 5, 3000.00, 15000.00),
-(38, 31, 3, 5, 3000.00, 15000.00),
-(39, 32, 3, 1, 3000.00, 3000.00),
-(40, 33, 2, 1, 3000.00, 3000.00),
-(42, 35, 2, 5, 3000.00, 15000.00),
-(43, 35, 3, 5, 3000.00, 15000.00),
-(44, 36, 7, 5, 1000.00, 5000.00);
+(51, 40, 2, 1, 3000.00, 3000.00),
+(52, 40, 3, 1, 3000.00, 3000.00);
 
 -- --------------------------------------------------------
 
@@ -181,6 +160,7 @@ INSERT INTO `purchase_order_items` (`purchase_order_item_id`, `purchase_order_id
 
 CREATE TABLE `sales` (
   `sale_id` int(11) NOT NULL,
+  `transaction_id` varchar(80) NOT NULL,
   `customer_name` varchar(80) NOT NULL,
   `grand_total` decimal(10,2) NOT NULL,
   `cash_received` decimal(10,2) NOT NULL,
@@ -193,15 +173,11 @@ CREATE TABLE `sales` (
 -- Dumping data for table `sales`
 --
 
-INSERT INTO `sales` (`sale_id`, `customer_name`, `grand_total`, `cash_received`, `cash_change`, `date`, `sold_by`) VALUES
-(1, 'Walk-in', 8800.00, 10000.00, 1200.00, '2025-09-28 05:33:09', 2),
-(2, 'Walk-in', 5500.00, 5500.00, 0.00, '2025-09-28 05:33:57', 2),
-(3, 'Walk-in', 11000.00, 20000.00, 9000.00, '2025-09-28 05:34:21', 2),
-(4, 'Walk-in', 18000.00, 18000.00, 0.00, '2025-09-28 05:55:58', 1),
-(5, 'Walk-in', 2000.00, 2000.00, 0.00, '2025-09-28 06:34:01', 1),
-(6, 'Walk-in', 16000.00, 16000.00, 0.00, '2025-09-28 06:58:02', 1),
-(7, 'Walk-in', 8000.00, 10000.00, 2000.00, '2025-09-28 06:58:19', 1),
-(8, 'Walk-in', 8000.00, 10000.00, 2000.00, '2025-09-28 07:06:28', 1);
+INSERT INTO `sales` (`sale_id`, `transaction_id`, `customer_name`, `grand_total`, `cash_received`, `cash_change`, `date`, `sold_by`) VALUES
+(25, 'TXN-2510-8400', 'Walk-in', 215000.00, 215000.00, 0.00, '2025-10-04 16:05:09', 2),
+(26, 'TXN-2510-4746', 'Walk-in', 50000.00, 50000.00, 0.00, '2025-10-04 17:54:36', 2),
+(27, 'TXN-2510-7688', 'Walk-in', 130000.00, 130000.00, 0.00, '2025-10-04 17:55:08', 2),
+(28, 'TXN-2510-1318', 'Walk-in', 50000.00, 50000.00, 0.00, '2025-10-04 18:31:15', 2);
 
 -- --------------------------------------------------------
 
@@ -224,16 +200,13 @@ CREATE TABLE `sale_items` (
 --
 
 INSERT INTO `sale_items` (`sale_item_id`, `sale_id`, `item_id`, `quantity`, `unit_price`, `line_total`, `created_at`) VALUES
-(1, 1, 3, 1, 8000.00, 8000.00, '2025-09-28 13:33:09'),
-(2, 2, 6, 1, 5000.00, 5000.00, '2025-09-28 13:33:57'),
-(3, 3, 3, 1, 8000.00, 8000.00, '2025-09-28 13:34:21'),
-(4, 3, 7, 1, 2000.00, 2000.00, '2025-09-28 13:34:21'),
-(5, 4, 3, 2, 8000.00, 16000.00, '2025-09-28 13:55:58'),
-(6, 4, 7, 1, 2000.00, 2000.00, '2025-09-28 13:55:58'),
-(7, 5, 7, 1, 2000.00, 2000.00, '2025-09-28 14:34:01'),
-(8, 6, 3, 2, 8000.00, 16000.00, '2025-09-28 14:58:02'),
-(9, 7, 3, 1, 8000.00, 8000.00, '2025-09-28 14:58:19'),
-(10, 8, 3, 1, 8000.00, 8000.00, '2025-09-28 15:06:28');
+(36, 25, 2, 5, 5000.00, 25000.00, '2025-10-05 00:05:09'),
+(37, 25, 3, 10, 8000.00, 80000.00, '2025-10-05 00:05:09'),
+(38, 25, 7, 3, 2000.00, 6000.00, '2025-10-05 00:05:09'),
+(39, 25, 8, 8, 13000.00, 104000.00, '2025-10-05 00:05:09'),
+(40, 26, 2, 10, 5000.00, 50000.00, '2025-10-05 01:54:36'),
+(41, 27, 3, 10, 8000.00, 80000.00, '2025-10-05 01:55:08'),
+(43, 28, 9, 10, 5000.00, 50000.00, '2025-10-05 02:31:15');
 
 -- --------------------------------------------------------
 
@@ -270,7 +243,7 @@ CREATE TABLE `users` (
   `user_id` int(11) NOT NULL,
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('admin','staff','','') DEFAULT NULL,
+  `role` enum('admin','staff') DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -362,43 +335,43 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `items`
 --
 ALTER TABLE `items`
-  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `item_stock_adjustment`
 --
 ALTER TABLE `item_stock_adjustment`
-  MODIFY `item_stock_adjustment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `item_stock_adjustment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
-  MODIFY `purchase_order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `purchase_order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
 
 --
 -- AUTO_INCREMENT for table `purchase_order_items`
 --
 ALTER TABLE `purchase_order_items`
-  MODIFY `purchase_order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=45;
+  MODIFY `purchase_order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
 
 --
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `sale_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `sale_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `sale_items`
 --
 ALTER TABLE `sale_items`
-  MODIFY `sale_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `sale_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
