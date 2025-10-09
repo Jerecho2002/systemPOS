@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $items = $database->select_items();
+$pc_builders = $database->getPCBuilders();
 $cart = $_SESSION['cart'] ?? [];
 
 $subtotal = 0;
@@ -46,7 +47,7 @@ $grand_total = $subtotal;
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Process Sales</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/tailwind.min.css">
 </head>
 
 <body class="bg-gray-50 flex">
@@ -102,21 +103,32 @@ $grand_total = $subtotal;
 
           <p class="text-xs text-gray-500 mb-4">Click products to add to cart</p>
 
-          <!-- Scrollable product grid -->
-          <div id="productGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[130px] overflow-y-auto pr-1">
+          <!-- Scrollable grid with 3 columns and vertical scroll -->
+          <div class="overflow-y-auto h-64 grid grid-cols-3 gap-4">
+            <!-- Display PC Builder products -->
+            <?php foreach ($pc_builders as $pc): ?>
+              <?php
+              $jsPCName = addslashes($pc['pc_builder_name']);
+              $price = (float) $pc['total_price']; // use real total price from query
+              ?>
+              <button type="button" class="product-item text-left cursor-pointer"
+                onclick="openQuantityModal('pcb<?= $pc['pc_builder_id']; ?>', '<?= $jsPCName; ?>', 999, true)">
+                <div class="p-4 border rounded-lg hover:shadow cursor-pointer bg-blue-50">
+                  <p class="font-medium text-blue-700"><?= htmlspecialchars($pc['pc_builder_name']); ?></p>
+                  <p class="text-sm text-gray-700">₱<?= number_format($price, 2); ?></p>
+                  <p class="text-xs text-gray-400">Custom PC Build</p>
+                </div>
+              </button>
+            <?php endforeach; ?>
+
 
             <?php foreach ($items as $item): ?>
               <?php if ($item['quantity'] < 0)
                 continue; ?>
-              <?php
-                $jsItemName = addslashes($item['item_name']);
-              ?>
-              <button 
-                type="button" 
-                class="product-item w-full text-left <?= $item['quantity'] <= 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer' ?>" 
-                <?= $item['quantity'] <= 0 ? 'disabled' : '' ?>
-                <?= $item['quantity'] > 0 ? "onclick=\"openQuantityModal({$item['item_id']}, '{$jsItemName}', {$item['quantity']})\"" : '' ?>
-                <?= $item['quantity'] <= 0 ? 'disabled class="opacity-50 cursor-not-allowed"' : '' ?>>
+              <?php $jsItemName = addslashes($item['item_name']); ?>
+              <button type="button"
+                class="product-item text-left <?= $item['quantity'] <= 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer' ?>"
+                <?= $item['quantity'] <= 0 ? 'disabled' : '' ?>   <?= $item['quantity'] > 0 ? "onclick=\"openQuantityModal({$item['item_id']}, '{$jsItemName}', {$item['quantity']})\"" : '' ?>>
                 <div class="p-4 border rounded-lg hover:shadow cursor-pointer">
                   <p class="font-medium product-name"><?= $item['item_name']; ?></p>
                   <p class="text-sm text-gray-700">₱<?= number_format($item['selling_price']); ?></p>
@@ -170,8 +182,14 @@ $grand_total = $subtotal;
                 <div class='flex items-center space-x-2'>
                   <p class='font-semibold'>₱<?= number_format($item['line_total'], 2); ?></p>
                   <!-- Modal Trigger Button -->
+                  <?php
+                  // Handle both item and PC Builder
+                  $removeId = isset($item['item_id'])
+                    ? 'item_' . $item['item_id']
+                    : 'pcb_' . $item['pc_builder_id'];
+                  ?>
                   <button type="button"
-                    onclick="openRemoveItemModal(<?= $item['item_id']; ?>, '<?= htmlspecialchars($item['name'], ENT_QUOTES); ?>')"
+                    onclick="openRemoveItemModal('<?= $removeId; ?>', '<?= htmlspecialchars($item['name'], ENT_QUOTES); ?>')"
                     class="text-red-500 hover:text-red-700" title="Remove item" aria-label="Remove item">
                     <!-- Trash Can SVG icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
@@ -188,20 +206,9 @@ $grand_total = $subtotal;
         }
         ?>
       </div>
-
     </div>
 
-    <!-- Container: Left (Customer) and Right (Order Summary) Side by Side -->
     <div class="flex space-x-6 mt-3 w-full">
-
-      <!-- Left Side: Customer -->
-      <div class="bg-white rounded-xl shadow p-4 flex-1">
-        <h3 class="font-semibold text-sm mb-2">Customer (Optional)</h3>
-        <input type="text" name="customer" id="customerInput" value="walk in"
-          class="w-full border rounded-md px-3 py-2 text-sm text-gray-700" placeholder="Enter customer name">
-      </div>
-
-      <!-- Right Side: Order Summary -->
       <div class="bg-white rounded-xl shadow p-4 flex-1">
         <h3 class="font-semibold text-sm mb-4">Order Summary</h3>
         <?php
@@ -223,33 +230,55 @@ $grand_total = $subtotal;
           </div>
         </div>
 
-        <div class="mt-4">
-          <form method="POST" action="<?= $_SERVER['PHP_SELF']; ?>">
-            <input type="hidden" name="action" value="process_sale">
-            <input type="hidden" name="customer" id="customerInputHidden" value="walk in">
+        <div class="flex space-x-6 mt-3 w-full">
 
-            <div class="mt-4">
-              <label class="block text-xs text-gray-500 mb-1">Cash Received</label>
+          <div class="bg-white rounded-xl shadow p-4 w-1/4">
+            <h3 class="font-semibold text-sm mb-4">Choose Payment</h3>
+            <form method="POST" action="<?= $_SERVER['PHP_SELF']; ?>">
+              <input type="hidden" name="action" value="process_sale">
+              <div class="space-y-2 text-sm">
+                <label class="block">
+                  <input type="radio" name="payment_method" value="Cash" checked class="mr-2">
+                  Cash
+                </label>
+                <label class="block">
+                  <input type="radio" name="payment_method" value="Credit Card" class="mr-2">
+                  Credit Card
+                </label>
+                <label class="block">
+                  <input type="radio" name="payment_method" value="Gcash" class="mr-2">
+                  GCash
+                </label>
+              </div>
+
+          </div>
+
+          <div class="flex-1 flex gap-4">
+            <div class="flex-1 bg-white rounded-xl shadow p-4">
+              <label for="cashReceivedInput" class="block text-xs text-gray-500 mb-1">Cash Received</label>
               <input id="cashReceivedInput" name="cash_received" type="number" step="0.01" min="0"
                 value="<?= $grand_total; ?>" class="w-full border rounded-md px-3 py-2 text-sm bg-gray-50" required>
             </div>
 
-            <!-- Change Output -->
-            <div class="mt-2">
-              <p class="text-xs text-gray-500 mb-1">Change:</p>
-              <p id="cashChangeDisplay" class="text-lg font-semibold text-green-700">₱0.00</p>
+            <div class="flex-1 bg-white rounded-xl shadow p-4">
+              <h3 class="font-semibold text-sm mb-2">Customer (Optional)</h3>
+              <input type="text" name="customer" id="customerInput" value="walk in"
+                class="w-full border rounded-md px-3 py-2 text-sm text-gray-700" placeholder="Enter customer name">
             </div>
-
-            <button type="submit" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-2 rounded-md">
-              Process Sale
-            </button>
-          </form>
+          </div>
         </div>
+
+        <div class="mt-2">
+          <p class="text-xs text-gray-500 mb-1">Change:</p>
+          <p id="cashChangeDisplay" class="text-lg font-semibold text-green-700">₱0.00</p>
+        </div>
+
+        <button type="submit" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-2 rounded-md">
+          Process Sale
+        </button>
+        </form>
       </div>
-
     </div>
-
-
 
   </main>
 
@@ -326,7 +355,7 @@ $grand_total = $subtotal;
     });
   </script>
 
-<!-- BugerBar Close -->
+  <!-- BugerBar Close -->
   <script>
     const closeBtn = document.getElementById('sidebar-close');
 
@@ -404,41 +433,25 @@ $grand_total = $subtotal;
 
   <!-- Quantity Script -->
   <script>
-    function openQuantityModal(itemId, itemName, maxQuantity) {
+    function openQuantityModal(itemId, itemName, maxQuantity, isPcBuilder = false) {
       const quantityInput = document.getElementById('modalQuantity');
-      document.getElementById('modalItemId').value = itemId;
-      document.getElementById('modalItemName').textContent = itemName;
+      const itemIdInput = document.getElementById('modalItemId');
 
+      document.getElementById('modalItemName').textContent = itemName;
       quantityInput.value = 1;
       quantityInput.max = maxQuantity;
 
-      // Optional: reset validation state
-      quantityInput.setCustomValidity('');
+      // Clear both hidden inputs first
+      itemIdInput.name = isPcBuilder ? 'pc_builder_id' : 'item_id';
+      itemIdInput.value = isPcBuilder ? itemId.replace('pcb', '') : itemId;
 
       document.getElementById('quantityModal').classList.remove('hidden');
     }
-
+    
     function closeQuantityModal() {
-      document.getElementById('quantityModal').classList.add('hidden');
-    }
+    document.getElementById('quantityModal').classList.add('hidden');
+  }
 
-    // Close modal if clicking outside
-    window.addEventListener('click', function (e) {
-      const modal = document.getElementById('quantityModal');
-      if (!modal.classList.contains('hidden') && e.target === modal) {
-        closeQuantityModal();
-      }
-    });
-
-    // Optional: Validate max on input change
-    document.getElementById('modalQuantity').addEventListener('input', function () {
-      const max = parseInt(this.max, 10);
-      if (this.value > max) {
-        this.setCustomValidity(`Maximum quantity allowed is ${max}.`);
-      } else {
-        this.setCustomValidity('');
-      }
-    });
   </script>
 
   <!-- Cash change automatically calculate -->
@@ -488,8 +501,6 @@ $grand_total = $subtotal;
       });
     });
   </script>
-
-
 
 </body>
 

@@ -290,7 +290,7 @@ class Database
 
         if (isset($_POST['update_item'])) {
             $item_id = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
-            $item_name = filter_input(INPUT_POST, 'item_name', FILTER_SANITIZE_STRING);
+            $item_name = $_POST['item_name'];
             $barcode = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
             $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
             $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
@@ -704,19 +704,11 @@ class Database
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $item_id = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
+            $pc_builder_id = filter_input(INPUT_POST, 'pc_builder_id', FILTER_SANITIZE_NUMBER_INT);
             $quantity = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT) ?? 1;
 
-            if (!$item_id || $quantity <= 0) {
-                $_SESSION['sale-error'] = "Invalid item or quantity.";
-                return;
-            }
-
-            $stmt = $this->conn()->prepare("SELECT item_id, item_name, selling_price, quantity as stock FROM items WHERE item_id = ?");
-            $stmt->execute([$item_id]);
-            $item = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$item) {
-                $_SESSION['sale-error'] = "Item not found.";
+            if ($quantity <= 0) {
+                $_SESSION['sale-error'] = "Invalid quantity.";
                 return;
             }
 
@@ -724,29 +716,80 @@ class Database
                 $_SESSION['cart'] = [];
             }
 
-            // Check if already in cart
-            if (isset($_SESSION['cart'][$item_id])) {
-                $_SESSION['cart'][$item_id]['quantity'] += $quantity;
-            } else {
-                $_SESSION['cart'][$item_id] = [
-                    'item_id' => $item_id,
-                    'name' => $item['item_name'],
-                    'quantity' => $quantity,
-                    'unit_price' => $item['selling_price'],
-                    'line_total' => $item['selling_price'] * $quantity
-                ];
+            // ✅ CASE 1: Add a PC Builder to cart
+            if ($pc_builder_id) {
+                $pc = $this->getPCBuilderById($pc_builder_id);
+
+                if (!$pc) {
+                    $_SESSION['sale-error'] = "PC Builder not found.";
+                    return;
+                }
+
+                $cartKey = 'pcb_' . $pc_builder_id;
+
+                if (isset($_SESSION['cart'][$cartKey])) {
+                    $_SESSION['cart'][$cartKey]['quantity'] += $quantity;
+                } else {
+                    $_SESSION['cart'][$cartKey] = [
+                        'pc_builder_id' => $pc_builder_id,
+                        'name' => $pc['pc_builder_name'],
+                        'quantity' => $quantity,
+                        'unit_price' => $pc['total_price'],
+                        'line_total' => $pc['total_price'] * $quantity,
+                        'is_pc_builder' => true
+                    ];
+                }
+
+                // Recalculate line total
+                $_SESSION['cart'][$cartKey]['line_total'] =
+                    $_SESSION['cart'][$cartKey]['unit_price'] * $_SESSION['cart'][$cartKey]['quantity'];
+
+                return;
             }
 
-            // Recalculate line total
-            $_SESSION['cart'][$item_id]['line_total'] = $_SESSION['cart'][$item_id]['unit_price'] * $_SESSION['cart'][$item_id]['quantity'];
+            // ✅ CASE 2: Add a regular item to cart
+            if ($item_id) {
+                $stmt = $this->conn()->prepare("SELECT item_id, item_name, selling_price, quantity as stock FROM items WHERE item_id = ?");
+                $stmt->execute([$item_id]);
+                $item = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$item) {
+                    $_SESSION['sale-error'] = "Item not found.";
+                    return;
+                }
+
+                $cartKey = 'item_' . $item_id;
+
+                if (isset($_SESSION['cart'][$cartKey])) {
+                    $_SESSION['cart'][$cartKey]['quantity'] += $quantity;
+                } else {
+                    $_SESSION['cart'][$cartKey] = [
+                        'item_id' => $item_id,
+                        'name' => $item['item_name'],
+                        'quantity' => $quantity,
+                        'unit_price' => $item['selling_price'],
+                        'line_total' => $item['selling_price'] * $quantity,
+                        'is_pc_builder' => false
+                    ];
+                }
+
+                // Recalculate line total
+                $_SESSION['cart'][$cartKey]['line_total'] =
+                    $_SESSION['cart'][$cartKey]['unit_price'] * $_SESSION['cart'][$cartKey]['quantity'];
+            } else {
+                $_SESSION['sale-error'] = "No item or PC Builder selected.";
+            }
         }
     }
+
 
     public function process_sale()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cart = $_SESSION['cart'] ?? [];
             $cash_received = filter_input(INPUT_POST, 'cash_received', FILTER_VALIDATE_FLOAT);
+            $customer_name = filter_input(INPUT_POST, 'customer', FILTER_SANITIZE_STRING);
+            $payment_method = filter_input(INPUT_POST, 'payment_method', FILTER_SANITIZE_STRING);
             $user_id = $_SESSION['user_id'] ?? null;
 
             if (empty($cart)) {
@@ -759,6 +802,7 @@ class Database
                 return;
             }
 
+            // Compute totals
             $total = 0;
             foreach ($cart as $item) {
                 $total += $item['line_total'];
@@ -776,81 +820,206 @@ class Database
                 $conn = $this->conn();
                 $conn->beginTransaction();
 
-                // Generate a unique transaction ID (TXN-YYMM-RAND)
+                // ✅ Check stock availability before processing
+                foreach ($cart as $item) {
+                    // For PC Builder
+                    if (isset($item['is_pc_builder']) && $item['is_pc_builder'] === true) {
+                        $pc = $this->getPCBuilderById($item['pc_builder_id']);
+
+                        $componentIds = [
+                            $pc['cpu_id'] ?? null,
+                            $pc['gpu_id'] ?? null,
+                            $pc['ram_id'] ?? null,
+                            $pc['motherboard_id'] ?? null,
+                            $pc['storage_id'] ?? null,
+                            $pc['psu_id'] ?? null,
+                            $pc['case_id'] ?? null
+                        ];
+
+                        foreach ($componentIds as $compId) {
+                            if ($compId) {
+                                $checkStock = $conn->prepare("SELECT quantity FROM items WHERE item_id = ?");
+                                $checkStock->execute([$compId]);
+                                $stock = $checkStock->fetchColumn();
+
+                                if ($stock === false) {
+                                    $_SESSION['sale-error'] = "Component not found in inventory.";
+                                    $conn->rollBack();
+                                    return;
+                                }
+
+                                if ($stock <= 0) {
+                                    // Fetch component name
+                                    $getName = $conn->prepare("SELECT item_name FROM items WHERE item_id = ?");
+                                    $getName->execute([$compId]);
+                                    $componentName = $getName->fetchColumn();
+
+                                    $_SESSION['sale-error'] = "Cannot proceed. Component '{$componentName}' is out of stock.";
+                                    $conn->rollBack();
+                                    return;
+                                }
+
+
+                                if ($stock < $item['quantity']) {
+                                    $_SESSION['sale-error'] = "Not enough stock for one or more PC Builder components.";
+                                    $conn->rollBack();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    // For regular items
+                    else {
+                        $checkStock = $conn->prepare("SELECT quantity FROM items WHERE item_id = ?");
+                        $checkStock->execute([$item['item_id']]);
+                        $stock = $checkStock->fetchColumn();
+
+                        if ($stock === false) {
+                            $_SESSION['sale-error'] = "Item not found in inventory.";
+                            $conn->rollBack();
+                            return;
+                        }
+
+                        if ($stock <= 0) {
+                            $_SESSION['sale-error'] = "Cannot proceed. One or more items are out of stock.";
+                            $conn->rollBack();
+                            return;
+                        }
+
+                        if ($stock < $item['quantity']) {
+                            $_SESSION['sale-error'] = "Not enough stock for one or more items.";
+                            $conn->rollBack();
+                            return;
+                        }
+                    }
+                }
+
+                // ✅ Generate unique transaction ID
                 $checkTransaction = $conn->prepare("SELECT COUNT(*) FROM sales WHERE transaction_id = ?");
                 $attempt = 0;
                 do {
-                    $randomSuffix = rand(1000, 9999); // 4-digit random number
-                    $year = date('y'); // Last two digits of the year
-                    $month = date('m'); // Current month
-                    $transaction_id = "TXN-{$year}{$month}-{$randomSuffix}"; // Example: TXN-2509-1234
-
-                    // Check if the generated transaction_id already exists
+                    $randomSuffix = rand(1000, 9999);
+                    $year = date('y');
+                    $month = date('m');
+                    $transaction_id = "TXN-{$year}{$month}-{$randomSuffix}";
                     $checkTransaction->execute([$transaction_id]);
                     $exists = $checkTransaction->fetchColumn() > 0;
                     $attempt++;
-                } while ($exists && $attempt < 10); // Try up to 10 times to generate a unique ID
+                } while ($exists && $attempt < 10);
 
                 if ($attempt >= 10) {
-                    $_SESSION['sale-error'] = "Failed to generate a unique transaction ID. Please try again.";
+                    $_SESSION['sale-error'] = "Failed to generate a unique transaction ID.";
                     return;
                 }
 
                 date_default_timezone_set('Asia/Manila');
                 $philippineDateTime = date('Y-m-d H:i:s');
 
-                // Insert into sales table, including transaction_id
+                // ✅ Insert into `sales`
                 $stmt = $conn->prepare("
-                INSERT INTO sales (transaction_id, customer_name, grand_total, cash_received, cash_change, date, sold_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO sales (transaction_id, customer_name, grand_total, cash_received, cash_change, payment_method, date, sold_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
                 $stmt->execute([
-                    $transaction_id, // Unique transaction_id
-                    'Walk-in',       // Customer name
-                    $grand_total,    // Grand total
-                    $cash_received,  // Cash received
-                    $change,         // Cash change
+                    $transaction_id,
+                    $customer_name,
+                    $grand_total,
+                    $cash_received,
+                    $change,
+                    $payment_method,
                     $philippineDateTime,
-                    $user_id         // Sold by (user ID)
+                    $user_id
                 ]);
 
                 $sale_id = $conn->lastInsertId();
 
-                // Insert sale items
+                // ✅ Prepare statements
                 $itemStmt = $conn->prepare("
                 INSERT INTO sale_items (sale_id, item_id, quantity, unit_price, line_total, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             ");
+
                 $stockUpdate = $conn->prepare("
                 UPDATE items SET quantity = quantity - ? WHERE item_id = ?
             ");
 
-                foreach ($cart as $item) {
-                    $itemStmt->execute([
-                        $sale_id,
-                        $item['item_id'],
-                        $item['quantity'],
-                        $item['unit_price'],
-                        $item['line_total'],
-                        $philippineDateTime
-                    ]);
+                $pcBuilderStmt = $conn->prepare("
+                INSERT INTO sale_pc_builders (sale_id, pc_builder_id, pc_builder_name, selling_price, quantity, line_total, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
 
-                    $stockUpdate->execute([
-                        $item['quantity'],
-                        $item['item_id']
-                    ]);
+                // ✅ Loop through cart
+                foreach ($cart as $item) {
+                    // CASE 1: PC Builder
+                    if (isset($item['is_pc_builder']) && $item['is_pc_builder'] === true) {
+
+                        // Fetch PC Builder details including component IDs
+                        $pc = $this->getPCBuilderById($item['pc_builder_id']);
+
+                        $pcBuilderStmt->execute([
+                            $sale_id,
+                            $item['pc_builder_id'],
+                            $item['name'],
+                            $item['unit_price'], // PC Builder total price per unit
+                            $item['quantity'],
+                            $item['line_total'],
+                            $philippineDateTime
+                        ]);
+
+                        // ✅ Deduct stock for each PC component
+                        $componentIds = [
+                            $pc['cpu_id'] ?? null,
+                            $pc['gpu_id'] ?? null,
+                            $pc['ram_id'] ?? null,
+                            $pc['motherboard_id'] ?? null,
+                            $pc['storage_id'] ?? null,
+                            $pc['psu_id'] ?? null,
+                            $pc['case_id'] ?? null
+                        ];
+
+                        foreach ($componentIds as $compId) {
+                            if ($compId) {
+                                $stockUpdate->execute([
+                                    $item['quantity'],
+                                    $compId
+                                ]);
+                            }
+                        }
+                    }
+                    // CASE 2: Regular Item
+                    else {
+                        $itemStmt->execute([
+                            $sale_id,
+                            $item['item_id'],
+                            $item['quantity'],
+                            $item['unit_price'],
+                            $item['line_total'],
+                            $philippineDateTime
+                        ]);
+
+                        $stockUpdate->execute([
+                            $item['quantity'],
+                            $item['item_id']
+                        ]);
+                    }
                 }
 
+                // ✅ Commit transaction
                 $conn->commit();
                 unset($_SESSION['cart']);
+
                 $_SESSION['sale-success'] = "Sale processed successfully. Change: ₱" . number_format($change, 2);
 
             } catch (PDOException $e) {
-                $conn->rollBack();
+                if ($conn->inTransaction()) {
+                    $conn->rollBack();
+                }
                 $_SESSION['sale-error'] = "Transaction failed: " . $e->getMessage();
             }
         }
     }
+
+
 
     public function getTodaysSalesStats()
     {
@@ -1355,6 +1524,7 @@ class Database
                 sales.transaction_id,
                 sales.customer_name,
                 sales.grand_total,
+                sales.payment_method,
                 DATE_FORMAT(sales.date, '%Y-%m-%d') as date,
                 DATE_FORMAT(sales.date, '%H:%i:%s') as time
             FROM sales
@@ -1376,13 +1546,15 @@ class Database
 
     public function remove_from_cart()
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_item_id'])) {
-            $item_id = filter_input(INPUT_POST, 'remove_item_id', FILTER_SANITIZE_NUMBER_INT);
+        $removeId = $_POST['remove_item_id'] ?? null;
+        if (!$removeId)
+            return;
 
-            if ($item_id && isset($_SESSION['cart'][$item_id])) {
-                unset($_SESSION['cart'][$item_id]);
-                $_SESSION['sale-success'] = "Item removed from cart.";
-            }
+        if (isset($_SESSION['cart'][$removeId])) {
+            unset($_SESSION['cart'][$removeId]);
+            $_SESSION['sale-success'] = "Item removed from cart.";
+        } else {
+            $_SESSION['sale-error'] = "Item not found in cart.";
         }
     }
 
@@ -1489,5 +1661,147 @@ class Database
 
         return $categories;
     }
+
+    public function getItemsByCategoryName($categoryName)
+    {
+        $sql = "SELECT items.* 
+          FROM items 
+          JOIN categories ON items.category_id = categories.category_id 
+          WHERE categories.category_name = ?";
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute([$categoryName]);
+        return $stmt->fetchAll();
+    }
+
+    public function createPcBuilder()
+    {
+        if (isset($_POST['pc-build-btn'])) {
+            $pc_builder_name = trim($_POST['pc_builder_name'] ?? '');
+            $cpu = filter_input(INPUT_POST, 'CPU', FILTER_VALIDATE_INT);
+            $gpu = filter_input(INPUT_POST, 'GPU', FILTER_VALIDATE_INT);
+            $ram = filter_input(INPUT_POST, 'RAM', FILTER_VALIDATE_INT);
+            $motherboard = filter_input(INPUT_POST, 'Motherboard', FILTER_VALIDATE_INT);
+            $storage = filter_input(INPUT_POST, 'Storage', FILTER_VALIDATE_INT);
+            $psu = filter_input(INPUT_POST, 'PSU', FILTER_VALIDATE_INT);
+            $pc_case = filter_input(INPUT_POST, 'Case', FILTER_VALIDATE_INT);
+            $user_id = $_SESSION['user_id'] ?? null;
+
+            date_default_timezone_set('Asia/Manila');
+            $philippineDateTime = date('Y-m-d H:i:s');
+
+            $errors = [];
+
+            // Validate build name
+            if (empty($pc_builder_name)) {
+                $errors[] = "Build name is required.";
+            } elseif (strlen($pc_builder_name) > 100) {
+                $errors[] = "Build name must be less than 100 characters.";
+            }
+
+            // Check if build name already exists
+            $stmt = $this->conn()->prepare("SELECT pc_builder_name FROM pc_builders WHERE pc_builder_name = ?");
+            $stmt->execute([$pc_builder_name]);
+            if ($stmt->fetch()) {
+                $errors[] = "A build with this name already exists. Please choose another name.";
+            }
+
+            if (!empty($errors)) {
+                $_SESSION['create-error'] = implode("<br><br>", $errors);
+                return;
+            }
+
+            $stmt = $this->conn()->prepare("
+            INSERT INTO pc_builders (pc_builder_name, user_id,cpu_id, gpu_id, ram_id, motherboard_id, storage_id, psu_id, case_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $pc_builder_name,
+                $user_id,
+                $cpu,
+                $gpu,
+                $ram,
+                $motherboard,
+                $storage,
+                $psu,
+                $pc_case,
+                $philippineDateTime,
+            ]);
+
+            $_SESSION['create-success'] = "PC Build '{$pc_builder_name}' has been saved successfully.";
+        }
+    }
+
+    public function getPCBuilders()
+    {
+        $sql = "
+        SELECT 
+            pb.pc_builder_id,
+            pb.pc_builder_name,
+            pb.user_id,
+
+            cpu.item_name AS cpu_name,
+            gpu.item_name AS gpu_name,
+            ram.item_name AS ram_name,
+            mb.item_name AS motherboard_name,
+            st.item_name AS storage_name,
+            psu.item_name AS psu_name,
+            c.item_name AS case_name,
+
+            ROUND(
+                COALESCE(cpu.selling_price,0) + COALESCE(gpu.selling_price,0) + COALESCE(ram.selling_price,0) +
+                COALESCE(mb.selling_price,0) + COALESCE(st.selling_price,0) + COALESCE(psu.selling_price,0) + COALESCE(c.selling_price,0),
+            2) AS total_price
+        FROM pc_builders pb
+        LEFT JOIN items cpu ON pb.cpu_id = cpu.item_id
+        LEFT JOIN items gpu ON pb.gpu_id = gpu.item_id
+        LEFT JOIN items ram ON pb.ram_id = ram.item_id
+        LEFT JOIN items mb  ON pb.motherboard_id = mb.item_id
+        LEFT JOIN items st  ON pb.storage_id = st.item_id
+        LEFT JOIN items psu ON pb.psu_id = psu.item_id
+        LEFT JOIN items c   ON pb.case_id = c.item_id
+        ORDER BY pb.pc_builder_name ASC
+    ";
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getPCBuilderById($pc_builder_id)
+    {
+        $conn = $this->conn();
+
+        $stmt = $conn->prepare("
+        SELECT 
+            pb.pc_builder_id,
+            pb.pc_builder_name,
+            pb.cpu_id,
+            pb.gpu_id,
+            pb.ram_id,
+            pb.motherboard_id,
+            pb.storage_id,
+            pb.psu_id,
+            pb.case_id,
+            ROUND(
+                COALESCE(cpu.selling_price,0) + COALESCE(gpu.selling_price,0) +
+                COALESCE(ram.selling_price,0) + COALESCE(mb.selling_price,0) +
+                COALESCE(st.selling_price,0) + COALESCE(psu.selling_price,0) +
+                COALESCE(ca.selling_price,0),
+            2) AS total_price
+        FROM pc_builders pb
+        LEFT JOIN items cpu ON pb.cpu_id = cpu.item_id
+        LEFT JOIN items gpu ON pb.gpu_id = gpu.item_id
+        LEFT JOIN items ram ON pb.ram_id = ram.item_id
+        LEFT JOIN items mb  ON pb.motherboard_id = mb.item_id
+        LEFT JOIN items st  ON pb.storage_id = st.item_id
+        LEFT JOIN items psu ON pb.psu_id = psu.item_id
+        LEFT JOIN items ca  ON pb.case_id = ca.item_id
+        WHERE pb.pc_builder_id = ?
+    ");
+        $stmt->execute([$pc_builder_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
 }
 $database = new Database();
