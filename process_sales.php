@@ -484,23 +484,33 @@ $grand_total = $subtotal;
 
   <!-- Search Barcode and Item Name Script -->
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const searchInput = document.getElementById('productSearchInput');
-      const productItems = document.querySelectorAll('.product-item');
+document.addEventListener("DOMContentLoaded", function () {
+  const searchInput = document.getElementById('productSearchInput');
+  const productItems = document.querySelectorAll('.product-item');
 
-      searchInput.addEventListener('input', function () {
-        const searchValue = this.value.toLowerCase().trim();
+  searchInput.addEventListener('input', function () {
+    const searchValue = this.value.toLowerCase().trim();
 
-        productItems.forEach(item => {
-          const name = item.querySelector('.product-name').textContent.toLowerCase();
-          const barcode = item.querySelector('.product-barcode').textContent.toLowerCase();
+    productItems.forEach(item => {
+      // safely check both PC Builder and normal products
+      const nameEl = item.querySelector('.product-name');
+      const barcodeEl = item.querySelector('.product-barcode');
 
-          const matches = name.includes(searchValue) || barcode.includes(searchValue);
-          item.style.display = matches ? '' : 'none';
-        });
-      });
+      const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+      const barcode = barcodeEl ? barcodeEl.textContent.toLowerCase() : '';
+      const extra = item.textContent.toLowerCase(); // fallback for PC Builder
+
+      const matches =
+        name.includes(searchValue) ||
+        barcode.includes(searchValue) ||
+        extra.includes(searchValue);
+
+      item.style.display = matches ? '' : 'none';
     });
-  </script>
+  });
+});
+</script>
+
 
 </body>
 

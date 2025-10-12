@@ -226,39 +226,18 @@
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                   <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
-                <?php
-                  // Count how many items (quantities) per sale_id
-                  $sale_items_count = [];
-
-                  foreach ($sale_items as $item) {
-                      $sale_id = $item['sale_id'];
-
-                      if (!isset($sale_items_count[$sale_id])) {
-                          $sale_items_count[$sale_id] = 0;
-                      }
-
-                      $sale_items_count[$sale_id] += $item['quantity']; // Sum quantities
-                  }
-                  ?>
                 <?php $sales = array_slice($sales, 0, 5); ?>
                 <?php foreach($sales as $sale) : ?>
                 <tr>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">#<?= $sale['transaction_id']; ?></td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $sale['customer_name'] ?: "N/A" ; ?></td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₱<?= number_format($sale['grand_total'], 2); ?></td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <?php 
-                      $count = $sale_items_count[$sale['sale_id']] ?? 0;
-                      echo $count . ' item' . ($count !== 1 ? 's' : '');
-                    ?>
-                  </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= $sale['payment_method'] ?: "N/A" ?></td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= date('g:i A', strtotime($sale['time'])); ?></td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= date('F j, Y', strtotime($sale['date'])); ?></td>
