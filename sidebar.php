@@ -53,11 +53,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 
         <!-- Inventory Management Dropdown -->
         <div x-data="{ open: <?php echo in_array($currentPage, [
+            'categories.php',
             'item_catalog.php',
             'stock_levels.php',
             'purchase_orders.php',
             'suppliers.php',
-            'categories.php',
             'inventory_reports.php'
         ]) ? 'true' : 'false'; ?> }" class="px-3">
             <button @click="open = !open"
@@ -73,11 +73,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <div x-show="open" x-collapse class="mt-2 space-y-1 pl-3 border-l border-gray-200">
                 <?php
                 $links = [
+                    'categories.php' => 'Categories',
                     'item_catalog.php' => 'Item Catalog',
                     'stock_levels.php' => 'Stock Levels',
                     'purchase_orders.php' => 'Purchase Orders',
                     'suppliers.php' => 'Suppliers',
-                    'categories.php' => 'Categories',
                     'inventory_reports.php' => 'Inventory Reports'
                 ];
 

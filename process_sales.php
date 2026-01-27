@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $items = $database->select_items();
-$pc_builders = $database->getPCBuilders();
+// $pc_builders = $database->getPCBuilders();
 $cart = $_SESSION['cart'] ?? [];
 
 $subtotal = 0;
@@ -106,10 +106,10 @@ $grand_total = $subtotal;
           <!-- Scrollable grid with 3 columns and vertical scroll -->
           <div class="overflow-y-auto h-64 grid grid-cols-3 gap-4">
             <!-- Display PC Builder products -->
-            <?php foreach ($pc_builders as $pc): ?>
+            <!-- <?php foreach ($pc_builders as $pc): ?>
               <?php
               $jsPCName = addslashes($pc['pc_builder_name']);
-              $price = (float) $pc['total_price']; // use real total price from query
+              $price = (float) $pc['total_price'];
               ?>
               <button type="button" class="product-item text-left cursor-pointer"
                 onclick="openQuantityModal('pcb<?= $pc['pc_builder_id']; ?>', '<?= $jsPCName; ?>', 999, true)">
@@ -119,7 +119,7 @@ $grand_total = $subtotal;
                   <p class="text-xs text-gray-400">Custom PC Build</p>
                 </div>
               </button>
-            <?php endforeach; ?>
+            <?php endforeach; ?> -->
 
 
             <?php foreach ($items as $item): ?>

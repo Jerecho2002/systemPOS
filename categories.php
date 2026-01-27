@@ -56,14 +56,16 @@ $categories = $database->select_categories();
                     class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
                     <?= $_SESSION['create-success'] ?>
                 </div>
-                <?php unset($_SESSION['create-success']); endif; ?>
+            <?php unset($_SESSION['create-success']);
+            endif; ?>
 
             <?php if (isset($_SESSION['create-error'])): ?>
                 <div id="errorAlert"
                     class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
                     <?= $_SESSION['create-error'] ?>
                 </div>
-                <?php unset($_SESSION['create-error']); endif; ?>
+            <?php unset($_SESSION['create-error']);
+            endif; ?>
 
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -89,14 +91,17 @@ $categories = $database->select_categories();
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= $cat['category_name'] ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?= $cat['category_description'] ? htmlspecialchars($cat['category_description']) : "N/A"?>
+                                    <?= $cat['category_description'] ? htmlspecialchars($cat['category_description']) : "N/A" ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div class="flex space-x-2">
-                                        <button class="text-green-400 hover:text-green-600 openEditCategoryModal"
+                                        <button
+                                            class="text-green-400 hover:text-green-600 openEditCategoryModal"
                                             data-id="<?= $cat['category_id'] ?>"
                                             data-name="<?= htmlspecialchars($cat['category_name']) ?>"
-                                            data-description="<?= htmlspecialchars($cat['category_description']) ?>">
+                                            data-description="<?= htmlspecialchars($cat['category_description']) ?>"
+                                            data-category-type="<?= htmlspecialchars($cat['category_type']) ?>"
+                                            data-supports-quantity="<?= (int) $cat['supports_quantity'] ?>">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
                                                 fill="currentColor">
                                                 <path
@@ -139,27 +144,64 @@ $categories = $database->select_categories();
             </div>
 
             <form method="POST" class="space-y-4">
+
                 <div>
-                    <label for="category_name" class="block text-sm font-medium text-gray-700">Category Name</label>
-                    <input type="text" name="category_name" id="category_name" required
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+                    <label class="block text-sm font-medium text-gray-700">
+                        Category Name
+                    </label>
+                    <input
+                        type="text"
+                        name="category_name"
+                        required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                 </div>
 
                 <div>
-                    <label for="category_description"
-                        class="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea name="category_description" id="category_description" rows="3"
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring focus:ring-indigo-200"
-                        placeholder="Write a brief description (optional)"></textarea>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Description
+                    </label>
+                    <textarea
+                        name="category_description"
+                        rows="3"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md resize-none"
+                        placeholder="Optional"></textarea>
                 </div>
+
+                <!-- Category Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Category Type</label>
+                    <select name="category_type" required
+                        class="mt-1 w-full p-2 border rounded">
+                        <option value="">Select type</option>
+                        <option value="pc_part">PC Part</option>
+                        <option value="accessory">Accessory</option>
+                    </select>
+                </div>
+
+                <!-- Supports Quantity -->
+                <div class="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        name="supports_quantity"
+                        id="supports_quantity"
+                        class="rounded border-gray-300">
+                    <label for="supports_quantity" class="text-sm text-gray-700">
+                        Supports quantity (RAM, Storage, Accessories)
+                    </label>
+                </div>
+
 
                 <div class="flex justify-end space-x-2 pt-4">
-                    <button type="button" id="cancelCategoryModalBtn"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                    <button type="button"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                        id="cancelCategoryModalBtn">
                         Cancel
                     </button>
-                    <button name="create_category" type="submit"
-                        class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
+
+                    <button
+                        name="create_category"
+                        type="submit"
+                        class="px-4 py-2 bg-black text-white rounded">
                         Save Category
                     </button>
                 </div>
@@ -174,40 +216,90 @@ $categories = $database->select_categories();
         <div class="bg-white rounded-lg w-full max-w-md p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold">Update Category</h3>
-                <button id="closeEditCategoryModal" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+                <button id="closeEditCategoryModal"
+                    class="text-gray-500 hover:text-gray-700 text-2xl leading-none">
+                    &times;
+                </button>
             </div>
 
-            <form id="editCategoryForm" method="POST" class="space-y-4">
+            <form method="POST" class="space-y-4">
+
                 <input type="hidden" name="category_id" id="edit_category_id">
 
+                <!-- Category Name -->
                 <div>
-                    <label for="edit_category_name" class="block text-sm font-medium text-gray-700">Category
-                        Name</label>
-                    <input type="text" name="category_name" id="edit_category_name" required
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+                    <label class="block text-sm font-medium text-gray-700">
+                        Category Name
+                    </label>
+                    <input
+                        type="text"
+                        name="category_name"
+                        id="edit_category_name"
+                        required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                 </div>
 
+                <!-- Description -->
                 <div>
-                    <label for="edit_category_description"
-                        class="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea name="category_description" id="edit_category_description" rows="3"
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring focus:ring-indigo-200"
-                        placeholder="Update category description (optional)"></textarea>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Description
+                    </label>
+                    <textarea
+                        name="category_description"
+                        id="edit_category_description"
+                        rows="3"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md resize-none"
+                        placeholder="Optional">
+                </textarea>
+                </div>
+
+                <!-- Category Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">
+                        Category Type
+                    </label>
+                    <select
+                        name="category_type"
+                        id="edit_category_type"
+                        required
+                        class="mt-1 w-full p-2 border rounded">
+                        <option value="">Select type</option>
+                        <option value="pc_part">PC Part</option>
+                        <option value="accessory">Accessory</option>
+                    </select>
+                </div>
+
+                <!-- Supports Quantity -->
+                <div class="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        name="supports_quantity"
+                        id="edit_supports_quantity"
+                        class="rounded border-gray-300">
+                    <label for="edit_supports_quantity" class="text-sm text-gray-700">
+                        Supports quantity (RAM, Storage, Accessories)
+                    </label>
                 </div>
 
                 <div class="flex justify-end space-x-2 pt-4">
-                    <button type="button" id="cancelEditCategoryModalBtn"
+                    <button type="button"
+                        id="cancelEditCategoryModalBtn"
                         class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
                         Cancel
                     </button>
-                    <button name="update_category" type="submit"
-                        class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
+
+                    <button
+                        name="update_category"
+                        type="submit"
+                        class="px-4 py-2 bg-black text-white rounded">
                         Update Category
                     </button>
                 </div>
             </form>
         </div>
     </div>
+
+
 
 
     <!-- Delete Category Modal -->
@@ -305,13 +397,19 @@ $categories = $database->select_categories();
 
         editCategoryButtons.forEach(button => {
             button.addEventListener('click', () => {
-                const id = button.dataset.id;
-                const name = button.dataset.name;
-                const description = button.dataset.description;
+                document.getElementById('edit_category_id').value = button.dataset.id;
+                document.getElementById('edit_category_name').value = button.dataset.name;
+                document.getElementById('edit_category_description').value =
+                    button.dataset.description || '';
+                document.getElementById('edit_category_type').value =
+                    button.dataset.categoryType || '';
 
-                document.getElementById('edit_category_id').value = id;
-                document.getElementById('edit_category_name').value = name;
-                document.getElementById('edit_category_description').value = description || '';
+                const supportsQuantity =
+                    button.dataset.supportsQuantity === '1' ||
+                    button.dataset.supportsQuantity === 'true';
+
+                document.getElementById('edit_supports_quantity').checked = supportsQuantity;
+
 
                 editCategoryModal.classList.remove('hidden');
             });
@@ -331,6 +429,7 @@ $categories = $database->select_categories();
             }
         });
     </script>
+
 
     </script>
 

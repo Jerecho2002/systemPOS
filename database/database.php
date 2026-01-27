@@ -8,16 +8,39 @@ class Database
     private $fetchDefault = array(PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC);
     protected $conn;
 
+    // public function conn()
+    // {
+    //     try {
+    //         $this->conn = new PDO($this->serverName, $this->userName, $this->userPass, $this->fetchDefault);
+    //         return $this->conn;
+    //     } catch (PDOException $e) {
+    //         echo "Error : " . $e->getMessage();
+    //         exit;
+    //     }
+    // }
+
     public function conn()
     {
+        if ($this->conn instanceof PDO) {
+            return $this->conn;
+        }
+
         try {
-            $this->conn = new PDO($this->serverName, $this->userName, $this->userPass, $this->fetchDefault);
+            $this->conn = new PDO(
+                $this->serverName,
+                $this->userName,
+                $this->userPass,
+                $this->fetchDefault
+            );
+
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
             return $this->conn;
         } catch (PDOException $e) {
-            echo "Error : " . $e->getMessage();
-            exit;
+            die("Database connection error: " . $e->getMessage());
         }
     }
+
 
     public function login_session()
     {
@@ -468,7 +491,6 @@ class Database
 
                 $conn->commit();
                 $_SESSION['create-success'] = "Purchase order {$po_number} created successfully.";
-
             } catch (PDOException $e) {
                 $conn->rollBack();
                 $_SESSION['create-error'] = "Failed to create PO: " . $e->getMessage();
@@ -643,7 +665,6 @@ class Database
                 } else {
                     $previous_quantity = (int) $item['quantity'];
                     $new_quantity = $previous_quantity + $adjust_qty;
-
                 }
             }
 
@@ -1009,7 +1030,6 @@ class Database
                 unset($_SESSION['cart']);
 
                 $_SESSION['sale-success'] = "Sale processed successfully. Change: ₱" . number_format($change, 2);
-
             } catch (PDOException $e) {
                 if ($conn->inTransaction()) {
                     $conn->rollBack();
@@ -1074,7 +1094,6 @@ class Database
                 'avg_transaction' => $avgTransaction,
                 'growth_percent' => round($growthPercent)
             ];
-
         } catch (PDOException $e) {
             return [
                 'period' => 'Daily',
@@ -1129,7 +1148,6 @@ class Database
                 'avg_transaction' => $avg,
                 'growth_percent' => round($growth)
             ];
-
         } catch (PDOException $e) {
             return [
                 'period' => 'This Week',
@@ -1194,7 +1212,6 @@ class Database
                 'growth_percent' => round($growthPercent, 2),
                 'period' => date('F Y') // e.g. "October 2025"
             ];
-
         } catch (PDOException $e) {
             return [
                 'total_sales' => 0,
@@ -1251,7 +1268,6 @@ class Database
                 'avg_transaction' => $avg,
                 'growth_percent' => round($growth)
             ];
-
         } catch (PDOException $e) {
             return [
                 'period' => 'This Year',
@@ -1561,77 +1577,173 @@ class Database
 
     public function create_category()
     {
-        $errors = [];
-        if (isset($_POST['create_category'])) {
-            $category_name = filter_input(INPUT_POST, 'category_name', FILTER_SANITIZE_STRING);
-            $category_description = filter_input(INPUT_POST, 'category_description', FILTER_SANITIZE_STRING);
-
-            date_default_timezone_set('Asia/Manila');
-            $philippineDateTime = date('Y-m-d H:i:s');
-
-            $query = $this->conn()->prepare("SELECT category_name FROM categories WHERE category_name = ?");
-            $query->execute([$category_name]);
-            $check_category_name = $query->fetch();
-
-            if (empty($category_name)) {
-                $errors[] = "Do not leave the field empty";
-            } else if (strlen($category_name) > 30) {
-                $errors[] = "Category name is too long, cannot be exceed to 30 characters";
-            }
-
-            if ($check_category_name) {
-                $errors[] = "Category name is already taken.";
-            }
-
-            if (!empty($errors)) {
-                $_SESSION['create-error'] = implode("<br><br>", $errors);
-            } else {
-                $sql = $this->conn()->prepare("INSERT INTO categories (category_name, category_description, created_at) VALUES (?, ?, ?)");
-                $sql->execute([$category_name, $category_description, $philippineDateTime]);
-                $_SESSION['create-success'] = "Successfully added " . $category_name . " to category";
-            }
+        if (!isset($_POST['create_category'])) {
+            return;
         }
+
+        $errors = [];
+
+        $category_name        = trim($_POST['category_name'] ?? '');
+        $category_description = trim($_POST['category_description'] ?? '');
+
+        // checkbox → 1 / 0
+        $supports_quantity = isset($_POST['supports_quantity']) ? 1 : 0;
+
+        // select → pc_part | accessory
+        $category_type = $_POST['category_type'] ?? '';
+
+        date_default_timezone_set('Asia/Manila');
+        $createdAt = date('Y-m-d H:i:s');
+
+        if ($category_name === '') {
+            $errors[] = "Category name is required.";
+        } elseif (strlen($category_name) > 30) {
+            $errors[] = "Category name must not exceed 30 characters.";
+        }
+
+        if (!in_array($category_type, ['pc_part', 'accessory'])) {
+            $errors[] = "Invalid category type.";
+        }
+
+        // unique name
+        $stmt = $this->conn()->prepare(
+            "SELECT 1 FROM categories WHERE category_name = ?"
+        );
+        $stmt->execute([$category_name]);
+
+        if ($stmt->fetch()) {
+            $errors[] = "Category name already exists.";
+        }
+
+        $category_slug = strtolower(trim($category_name));
+        $category_slug = preg_replace('/[^a-z0-9]+/', '-', $category_slug);
+        $category_slug = trim($category_slug, '-');
+
+        // slug uniqueness
+        $slugCheck = $this->conn()->prepare(
+            "SELECT COUNT(*) FROM categories WHERE category_slug LIKE ?"
+        );
+        $slugCheck->execute([$category_slug . '%']);
+        $slugCount = (int) $slugCheck->fetchColumn();
+
+        if ($slugCount > 0) {
+            $category_slug .= '-' . ($slugCount + 1);
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['create-error'] = implode("<br><br>", $errors);
+            return;
+        }
+
+        $stmt = $this->conn()->prepare("
+        INSERT INTO categories (
+            category_name,
+            category_slug,
+            category_type,
+            category_description,
+            supports_quantity,
+            created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+    ");
+
+        $stmt->execute([
+            $category_name,
+            $category_slug,
+            $category_type,
+            $category_description,
+            $supports_quantity,
+            $createdAt
+        ]);
+
+        $_SESSION['create-success'] =
+            "Category '{$category_name}' added successfully.";
     }
+
+
 
     public function update_category()
     {
+        if (!isset($_POST['update_category'])) {
+            return;
+        }
+
         $errors = [];
 
-        if (isset($_POST['update_category'])) {
-            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
-            $category_name = filter_input(INPUT_POST, 'category_name', FILTER_SANITIZE_STRING);
-            $category_description = filter_input(INPUT_POST, 'category_description', FILTER_SANITIZE_STRING);
+        $category_id          = (int) ($_POST['category_id'] ?? 0);
+        $category_name        = trim($_POST['category_name'] ?? '');
+        $category_description = trim($_POST['category_description'] ?? '');
+        $category_type        = $_POST['category_type'] ?? '';
+        $supports_quantity    = isset($_POST['supports_quantity']) ? 1 : 0;
 
-            date_default_timezone_set('Asia/Manila');
-            $philippineDateTime = date('Y-m-d H:i:s');
+        date_default_timezone_set('Asia/Manila');
+        $updatedAt = date('Y-m-d H:i:s');
 
-            if (empty($category_name)) {
-                $errors[] = "Do not leave the category name empty.";
-            } elseif (strlen($category_name) > 30) {
-                $errors[] = "Category name is too long. Max 30 characters allowed.";
-            }
-
-            $query = $this->conn()->prepare("SELECT category_name FROM categories WHERE category_name = ? AND category_id != ?");
-            $query->execute([$category_name, $category_id]);
-            $check_category_name = $query->fetch();
-
-            if ($check_category_name) {
-                $errors[] = "Category name is already taken.";
-            }
-
-            if (!empty($errors)) {
-                $_SESSION['create-error'] = implode("<br><br>", $errors);
-            } else {
-                $sql = $this->conn()->prepare("
-                UPDATE categories 
-                SET category_name = ?, category_description = ?, updated_at = ?
-                WHERE category_id = ?
-            ");
-                $sql->execute([$category_name, $category_description, $category_id, $philippineDateTime]);
-
-                $_SESSION['create-success'] = "Successfully updated category '{$category_name}'.";
-            }
+        if ($category_name === '') {
+            $errors[] = "Category name is required.";
+        } elseif (strlen($category_name) > 30) {
+            $errors[] = "Category name must not exceed 30 characters.";
         }
+
+        if (!in_array($category_type, ['pc_part', 'accessory'])) {
+            $errors[] = "Invalid category type.";
+        }
+
+        // unique name (exclude self)
+        $stmt = $this->conn()->prepare(
+            "SELECT 1 FROM categories 
+         WHERE category_name = ? AND category_id != ?"
+        );
+        $stmt->execute([$category_name, $category_id]);
+
+        if ($stmt->fetch()) {
+            $errors[] = "Category name already exists.";
+        }
+
+        // regenerate slug
+        $category_slug = strtolower(trim($category_name));
+        $category_slug = preg_replace('/[^a-z0-9]+/', '-', $category_slug);
+        $category_slug = trim($category_slug, '-');
+
+        // slug uniqueness (exclude self)
+        $slugCheck = $this->conn()->prepare(
+            "SELECT COUNT(*) FROM categories 
+         WHERE category_slug LIKE ? AND category_id != ?"
+        );
+        $slugCheck->execute([$category_slug . '%', $category_id]);
+        $slugCount = (int) $slugCheck->fetchColumn();
+
+        if ($slugCount > 0) {
+            $category_slug .= '-' . ($slugCount + 1);
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['create-error'] = implode("<br><br>", $errors);
+            return;
+        }
+
+        $stmt = $this->conn()->prepare("
+        UPDATE categories SET
+            category_name = ?,
+            category_slug = ?,
+            category_type = ?,
+            category_description = ?,
+            supports_quantity = ?,
+            updated_at = ?
+        WHERE category_id = ?
+    ");
+
+        $stmt->execute([
+            $category_name,
+            $category_slug,
+            $category_type,
+            $category_description,
+            $supports_quantity,
+            $updatedAt,
+            $category_id
+        ]);
+
+        $_SESSION['create-success'] =
+            "Category '{$category_name}' updated successfully.";
     }
 
     public function delete_category()
@@ -1662,73 +1774,126 @@ class Database
         return $categories;
     }
 
-    public function getItemsByCategoryName($categoryName)
+    public function getAllCategories()
     {
-        $sql = "SELECT items.* 
-          FROM items 
-          JOIN categories ON items.category_id = categories.category_id 
-          WHERE categories.category_name = ?";
+        $sql = "
+        SELECT
+            category_id,
+            category_name,
+            category_slug,
+            category_type,
+            supports_quantity
+        FROM categories
+        ORDER BY category_name
+    ";
+
+        return $this->conn()->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+
+    public function getItemsByCategoryId($categoryId)
+    {
+        $sql = "SELECT item_id, item_name, selling_price
+            FROM items
+            WHERE category_id = ?";
+
         $stmt = $this->conn()->prepare($sql);
-        $stmt->execute([$categoryName]);
-        return $stmt->fetchAll();
+        $stmt->execute([$categoryId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function createPcBuilder()
     {
-        if (isset($_POST['pc-build-btn'])) {
-            $pc_builder_name = trim($_POST['pc_builder_name'] ?? '');
-            $cpu = filter_input(INPUT_POST, 'CPU', FILTER_VALIDATE_INT);
-            $gpu = filter_input(INPUT_POST, 'GPU', FILTER_VALIDATE_INT);
-            $ram = filter_input(INPUT_POST, 'RAM', FILTER_VALIDATE_INT);
-            $motherboard = filter_input(INPUT_POST, 'Motherboard', FILTER_VALIDATE_INT);
-            $storage = filter_input(INPUT_POST, 'Storage', FILTER_VALIDATE_INT);
-            $psu = filter_input(INPUT_POST, 'PSU', FILTER_VALIDATE_INT);
-            $pc_case = filter_input(INPUT_POST, 'Case', FILTER_VALIDATE_INT);
-            $user_id = $_SESSION['user_id'] ?? null;
+        if (!isset($_POST['pc-build-btn'])) {
+            return;
+        }
 
-            date_default_timezone_set('Asia/Manila');
-            $philippineDateTime = date('Y-m-d H:i:s');
+        $pdo = $this->conn();
 
-            $errors = [];
+        $pc_builder_name = trim($_POST['pc_builder_name'] ?? '');
+        $user_id = $_SESSION['user_id'] ?? null;
 
-            // Validate build name
-            if (empty($pc_builder_name)) {
-                $errors[] = "Build name is required.";
-            } elseif (strlen($pc_builder_name) > 100) {
-                $errors[] = "Build name must be less than 100 characters.";
+        date_default_timezone_set('Asia/Manila');
+        $createdAt = date('Y-m-d H:i:s');
+
+        $errors = [];
+
+        if ($pc_builder_name === '') {
+            $errors[] = "Build name is required.";
+        } elseif (strlen($pc_builder_name) > 100) {
+            $errors[] = "Build name must be less than 100 characters.";
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT 1 FROM pc_builders WHERE pc_builder_name = ? AND user_id = ?"
+        );
+        $stmt->execute([$pc_builder_name, $user_id]);
+
+        if ($stmt->fetch()) {
+            $errors[] = "You already have a build with this name.";
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['create-error'] = implode("<br><br>", $errors);
+            return;
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare("
+            INSERT INTO pc_builders (pc_builder_name, user_id, status, created_at)
+            VALUES (?, ?, 'Pending', ?)
+        ");
+            $stmt->execute([$pc_builder_name, $user_id, $createdAt]);
+
+            $pc_builder_id = $pdo->lastInsertId();
+            $categories = $this->getAllCategories();
+
+            $insertItem = $pdo->prepare("
+    INSERT INTO pc_builder_items
+    (pc_builder_id, category_id, item_id, quantity)
+    VALUES (?, ?, ?, ?)
+");
+
+            foreach ($categories as $category) {
+                $catId = $category['category_id'];
+                $itemKey = 'category_' . $catId;
+
+                if (!empty($_POST[$itemKey])) {
+                    $itemId = (int) $_POST[$itemKey];
+
+                    $quantity = 1;
+
+                    if (!empty($category['supports_quantity'])) {
+                        $qtyKey = 'quantity_' . $catId;
+                        if (!empty($_POST[$qtyKey]) && (int)$_POST[$qtyKey] > 0) {
+                            $quantity = (int) $_POST[$qtyKey];
+                        }
+                    }
+
+
+                    $insertItem->execute([
+                        $pc_builder_id,
+                        $catId,
+                        $itemId,
+                        $quantity
+                    ]);
+                }
             }
 
-            // Check if build name already exists
-            $stmt = $this->conn()->prepare("SELECT pc_builder_name FROM pc_builders WHERE pc_builder_name = ?");
-            $stmt->execute([$pc_builder_name]);
-            if ($stmt->fetch()) {
-                $errors[] = "A build with this name already exists. Please choose another name.";
+            $pdo->commit();
+
+            $_SESSION['create-success'] =
+                "PC Build '{$pc_builder_name}' has been saved successfully.";
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
             }
 
-            if (!empty($errors)) {
-                $_SESSION['create-error'] = implode("<br><br>", $errors);
-                return;
-            }
-
-            $stmt = $this->conn()->prepare("
-            INSERT INTO pc_builders (pc_builder_name, user_id,cpu_id, gpu_id, ram_id, motherboard_id, storage_id, psu_id, case_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-
-            $stmt->execute([
-                $pc_builder_name,
-                $user_id,
-                $cpu,
-                $gpu,
-                $ram,
-                $motherboard,
-                $storage,
-                $psu,
-                $pc_case,
-                $philippineDateTime,
-            ]);
-
-            $_SESSION['create-success'] = "PC Build '{$pc_builder_name}' has been saved successfully.";
+            $_SESSION['create-error'] =
+                "Failed to save PC Build. Please try again.";
         }
     }
 
@@ -1802,6 +1967,5 @@ class Database
         $stmt->execute([$pc_builder_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-
 }
 $database = new Database();
