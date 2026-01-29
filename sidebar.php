@@ -109,7 +109,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 <?php
                 $tools = [
                     'quotation.php' => 'Quotations',
-                    'pc_builder.php' => 'PC Builder',
                     'archives.php' => 'Archives'
                 ];
                 foreach ($tools as $file => $label) {

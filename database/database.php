@@ -1897,6 +1897,101 @@ class Database
         }
     }
 
+    public function getPcBuildersByUser($userId)
+    {
+        $pdo = $this->conn();
+
+        $stmt = $pdo->prepare("
+        SELECT 
+            pc_builder_id,
+            pc_builder_name,
+            status,
+            created_at
+        FROM pc_builders
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    ");
+
+        $stmt->execute([$userId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getPcBuilderDetails($pcBuilderId)
+    {
+        $pdo = $this->conn();
+
+        // Get PC Builder basic info
+        $stmt = $pdo->prepare("
+        SELECT 
+            pb.pc_builder_id,
+            pb.pc_builder_name,
+            pb.status,
+            pb.created_at,
+            pb.user_id,
+            u.username
+        FROM pc_builders pb
+        LEFT JOIN users u ON pb.user_id = u.user_id
+        WHERE pb.pc_builder_id = ?
+    ");
+
+        $stmt->execute([$pcBuilderId]);
+        $builder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$builder) {
+            return null;
+        }
+
+        // Get all items in this PC Builder with category and item details
+        $stmt = $pdo->prepare("
+        SELECT 
+            pbi.pc_builder_item_id,
+            pbi.quantity,
+            c.category_id,
+            c.category_name,
+            c.category_type,
+            i.item_id,
+            i.item_name,
+            i.selling_price,
+            (i.selling_price * pbi.quantity) as line_total
+        FROM pc_builder_items pbi
+        INNER JOIN categories c ON pbi.category_id = c.category_id
+        INNER JOIN items i ON pbi.item_id = i.item_id
+        WHERE pbi.pc_builder_id = ?
+        ORDER BY c.category_type DESC, c.category_name ASC
+    ");
+
+        $stmt->execute([$pcBuilderId]);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Calculate grand total
+        $grandTotal = 0;
+        foreach ($items as $item) {
+            $grandTotal += $item['line_total'];
+        }
+
+        // Group items by category type
+        $pcParts = [];
+        $accessories = [];
+
+        foreach ($items as $item) {
+            if ($item['category_type'] === 'pc_part') {
+                $pcParts[] = $item;
+            } else {
+                $accessories[] = $item;
+            }
+        }
+
+        return [
+            'builder' => $builder,
+            'pc_parts' => $pcParts,
+            'accessories' => $accessories,
+            'items' => $items,
+            'grand_total' => $grandTotal
+        ];
+    }
+
+
     public function getPCBuilders()
     {
         $sql = "
