@@ -1,6 +1,6 @@
 <?php
   include "database/database.php";
-  $database->login();
+  $database->register();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -8,7 +8,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>POS & Inventory System - Login</title>
+  <title>POS & Inventory System - Register</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -34,22 +34,28 @@
         </div>
       </div>
       <h1 class="text-2xl font-bold text-gray-800">POS & Inventory System</h1>
-      <p class="text-gray-500 text-sm">Login to access your dashboard</p>
+      <p class="text-gray-500 text-sm">Register to access your dashboard</p>
     </div>
 
-    <!-- Login Card -->
+    <!-- Register Card -->
     <div class="bg-white border rounded-xl p-6">
-      <h2 class="text-lg font-semibold text-gray-800">Login Account</h2>
+      <h2 class="text-lg font-semibold text-gray-800">Create Account</h2>
       <p class="text-sm text-gray-500 mb-4">Enter your credentials to access the system</p>
       <?php
-      if(isset($_SESSION['login-error'])){
-        $error = htmlspecialchars($_SESSION['login-error']);
+      if(isset($_SESSION['register-error'])){
+        $error = htmlspecialchars($_SESSION['register-error']);
         echo "<p class='text-red-500 text-sm mt-3'>{$error}</p>";
-        unset($_SESSION['login-error']);
+        unset($_SESSION['register-error']);
+      }
+      if(isset($_SESSION['register-success'])){
+        $success = htmlspecialchars($_SESSION['register-success']);
+        echo "<p class='text-green-500 text-sm mt-3'>{$success}</p>";
+        unset($_SESSION['register-success']);
       }
       ?>
 
       <form class="space-y-4" method="POST">
+        <input type="hidden" name="role" value="staff">
         <div>
           <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
           <input type="text" id="username" name="username" placeholder="Enter your username" required
@@ -60,10 +66,10 @@
           <input type="password" id="password" name="password" placeholder="Enter your password" required
             class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
         </div>
-        <button type="submit" name="login" class="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-900 transition">
-          Log In
+        <button type="submit" name="register" class="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-900 transition">
+          Register
         </button>
-        <p class="text-sm text-gray-600 text-center mt-4">Do you want to create an account? <a href="index.php" class="text-indigo-600 hover:underline font-medium">Register</a></p>
+        <p class="text-sm text-gray-600 text-center mt-4">Account already exists? <a href="index.php" class="text-indigo-600 hover:underline font-medium">Login</a></p>
       </form>
     </div>
   </div>
