@@ -5,12 +5,37 @@ $database->create_purchase_order();
 $database->cancel_purchase_order();
 $database->archive_purchase_order();
 $database->receive_purchase_order();
-$purchaseOrders = $database->list_purchase_orders();
-$purchase_orders = $database->select_purchase_orders();
+
+$perPage = 5;
+$search  = trim($_GET['search'] ?? '');
+$statusFilter = trim($_GET['status'] ?? '');
+$page    = max(1, (int) ($_GET['page'] ?? 1));
+
+$offset = ($page - 1) * $perPage;
+
+$totalPOs = $database->getTotalPurchaseOrdersCount($search, $statusFilter);
+$totalPages = max(1, ceil($totalPOs / $perPage));
+
+$purchaseOrders = $database->list_purchase_orders_paginated($offset, $perPage, $search, $statusFilter);
+
+$all_purchase_orders = $database->select_purchase_orders();
 $purchase_order_items = $database->select_purchase_order_items();
 
 $suppliers = $database->select_suppliers();
 $items = $database->select_items();
+
+function formatCompactCurrency($number)
+{
+  if ($number >= 1_000_000_000) {
+    return '₱' . round($number / 1_000_000_000, 1) . 'B';
+  } elseif ($number >= 1_000_000) {
+    return '₱' . round($number / 1_000_000, 1) . 'M';
+  } elseif ($number >= 1_000) {
+    return '₱' . round($number / 1_000, 1) . 'k';
+  } else {
+    return '₱' . number_format($number, 0);
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -39,7 +64,6 @@ $items = $database->select_items();
     ☰
   </button>
 
-
   <?php include "sidebar.php"; ?>
 
   <!-- Main Content -->
@@ -60,7 +84,7 @@ $items = $database->select_items();
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-500">Total POs</p>
-            <h4 class="text-2xl font-bold"><?php echo count($purchase_orders); ?></h4>
+            <h4 class="text-2xl font-bold"><?= count($all_purchase_orders) ?></h4>
             <p class="text-xs text-gray-500">all time</p>
           </div>
         </div>
@@ -68,9 +92,9 @@ $items = $database->select_items();
           <div>
             <p class="text-sm text-gray-500">Pending Orders</p>
             <?php
-            $statusOrdered = count(array_filter($purchase_orders, fn($po) => $po['status'] === "Ordered"));
+            $statusOrdered = count(array_filter($all_purchase_orders, fn($po) => $po['status'] === "Ordered"));
             ?>
-            <h4 class="text-2xl font-bold"><?php echo $statusOrdered; ?></h4>
+            <h4 class="text-2xl font-bold"><?= $statusOrdered ?></h4>
             <p class="text-xs text-gray-500">awaiting delivery</p>
           </div>
         </div>
@@ -78,9 +102,9 @@ $items = $database->select_items();
           <div>
             <p class="text-sm text-gray-500">Received</p>
             <?php
-            $statusReceivedTotal = count(array_filter($purchase_orders, fn($po) => $po['status'] === "Received"));
+            $statusReceivedTotal = count(array_filter($all_purchase_orders, fn($po) => $po['status'] === "Received"));
             ?>
-            <h4 class="text-2xl font-bold"><?php echo $statusReceivedTotal; ?></h4>
+            <h4 class="text-2xl font-bold"><?= $statusReceivedTotal ?></h4>
             <p class="text-xs text-gray-500">completed orders</p>
           </div>
         </div>
@@ -90,86 +114,90 @@ $items = $database->select_items();
             <?php
             $grandTotal = array_sum(
               array_column(
-                array_filter($purchase_orders, fn($po) => $po['status'] === "Ordered"),
+                array_filter($all_purchase_orders, fn($po) => $po['status'] === "Ordered"),
                 'grand_total'
               )
             );
             ?>
-            <?php
-            function formatCompactCurrency($number)
-            {
-              if ($number >= 1_000_000_000) {
-                return '₱' . round($number / 1_000_000_000, 1) . 'B';
-              } elseif ($number >= 1_000_000) {
-                return '₱' . round($number / 1_000_000, 1) . 'M';
-              } elseif ($number >= 1_000) {
-                return '₱' . round($number / 1_000, 1) . 'k';
-              } else {
-                return '₱' . number_format($number, 0);
-              }
-            }
-            ?>
-            <h4 class="text-2xl font-bold"><?php echo formatCompactCurrency($grandTotal); ?></h4>
+            <h4 class="text-2xl font-bold"><?= formatCompactCurrency($grandTotal) ?></h4>
             <p class="text-xs text-gray-500">pending orders</p>
           </div>
         </div>
       </div>
 
       <div class="bg-white border rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center space-x-4">
-            <div class="flex items-center gap-4 mb-4">
-              <div class="relative flex-1">
-                <input type="text" id="poSearchInput" placeholder="Search by PO number or supplier..."
-                  class="w-[24rem] px-4 py-2 border rounded-lg focus:outline-none">
-              </div>
-              <select id="poStatusFilter" class="px-4 py-2 border rounded-lg focus:outline-none">
-                <option value="">All Statuses</option>
-                <option value="Ordered">Ordered</option>
-                <option value="Received">Received</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
+        <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between mb-4 gap-3">
+          <form method="GET" action="" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+            <div class="relative flex-1 max-w-md">
+              <input 
+                type="text" 
+                name="search" 
+                id="poSearchInput" 
+                value="<?= htmlspecialchars($search) ?>"
+                placeholder="Search by PO number or supplier..."
+                class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
             </div>
-          </div>
-          <button id="createPoButton" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
+            
+            <select name="status" id="poStatusFilter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">All Statuses</option>
+              <option value="Ordered" <?= $statusFilter === 'Ordered' ? 'selected' : '' ?>>Ordered</option>
+              <option value="Received" <?= $statusFilter === 'Received' ? 'selected' : '' ?>>Received</option>
+              <option value="Cancelled" <?= $statusFilter === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
+            </select>
+
+            <?php if ($search !== '' || $statusFilter !== ''): ?>
+              <a href="?" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 whitespace-nowrap text-center">
+                Clear
+              </a>
+            <?php endif; ?>
+          </form>
+          
+          <button id="createPoButton" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
             + Create PO
           </button>
         </div>
 
+        <?php if ($search !== '' || $statusFilter !== ''): ?>
+          <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+            Showing filtered results (<?= $totalPOs ?> order<?= $totalPOs !== 1 ? 's' : '' ?>)
+            <?php if ($search !== ''): ?>
+              - Search: "<strong><?= htmlspecialchars($search) ?></strong>"
+            <?php endif; ?>
+            <?php if ($statusFilter !== ''): ?>
+              - Status: <strong><?= htmlspecialchars($statusFilter) ?></strong>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
+
         <h4 class="text-lg font-semibold mb-2">Purchase Orders</h4>
-        <?php
-        if (isset($_SESSION['create-success'])) {
-          $success = $_SESSION['create-success'];
-        ?>
+        
+        <?php if (isset($_SESSION['create-success'])): ?>
           <div id="successAlert"
             class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
-            <?php echo $success ?>
+            <?= $_SESSION['create-success'] ?>
           </div>
-        <?php
-        } ?>
+          <?php unset($_SESSION['create-success']); ?>
+        <?php endif; ?>
 
-        <?php
-        if (isset($_SESSION['create-error'])) {
-          $error = $_SESSION['create-error'];
-        ?>
+        <?php if (isset($_SESSION['create-error'])): ?>
           <div id="errorAlert" class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
-            <?php echo $error ?>
+            <?= $_SESSION['create-error'] ?>
           </div>
-        <?php
-        } ?>
+          <?php unset($_SESSION['create-error']); ?>
+        <?php endif; ?>
+
         <p class="text-sm text-gray-500 mb-4">List purchase orders from suppliers.</p>
+        
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO Number
-                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO Number</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date
-                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount
-                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -177,126 +205,212 @@ $items = $database->select_items();
             <?php
             // Count how many items (quantities) per purchase_order_id
             $purchase_items_count = [];
-
             foreach ($purchase_order_items as $poi) {
               $po_id = $poi['purchase_order_id'];
               $qty = (int)$poi['quantity'];
-
               if (!isset($purchase_items_count[$po_id])) {
                 $purchase_items_count[$po_id] = 0;
               }
-
               $purchase_items_count[$po_id] += $qty;
             }
             ?>
             <tbody class="bg-white divide-y divide-gray-200">
-              <?php foreach ($purchaseOrders as $po): ?>
-                <?php if ($po['is_active'] === 0)
-                  continue; ?>
+              <?php if (!empty($purchaseOrders)): ?>
+                <?php foreach ($purchaseOrders as $po): ?>
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <?= htmlspecialchars($po['po_number']) ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <?= htmlspecialchars($po['supplier_name']) ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <?= date('F j, Y, g:i A', strtotime($po['date'])) ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <?php
+                      $count = $purchase_items_count[$po['purchase_order_id']] ?? 0;
+                      echo $count . ' item' . ($count !== 1 ? 's' : '');
+                      ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      ₱<?= number_format($po['grand_total'], 2) ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <?php
+                      $status = strtolower($po['status']);
+                      switch ($status) {
+                        case 'ordered':
+                          $color = 'bg-blue-100 text-blue-800';
+                          break;
+                        case 'received':
+                          $color = 'bg-green-100 text-green-800';
+                          break;
+                        case 'cancelled':
+                          $color = 'bg-red-100 text-red-800';
+                          break;
+                        default:
+                          $color = 'bg-gray-100 text-gray-800';
+                      }
+                      ?>
+                      <span class="status-label <?= $color ?> px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
+                        <?= ucfirst($status) ?>
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div class="flex space-x-2">
+                        <button class="viewPoBtn text-blue-400 hover:text-blue-600" title="View"
+                          data-po-number="<?= htmlspecialchars($po['po_number']) ?>"
+                          data-supplier="<?= htmlspecialchars($po['supplier_name']) ?>"
+                          data-date="<?= htmlspecialchars($po['date']) ?>"
+                          data-status="<?= htmlspecialchars($po['status']) ?>"
+                          data-created-by="<?= htmlspecialchars($po['created_by']) ?>"
+                          data-items='<?= json_encode($po['items']) ?>'>
+                          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path fill-rule="evenodd"
+                              d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                              clip-rule="evenodd" />
+                          </svg>
+                        </button>
+                        <?php
+                        $status = $po['status'];
+                        $poId = $po['purchase_order_id'];
+                        $poNumber = htmlspecialchars($po['po_number']);
+                        ?>
+
+                        <?php if ($status !== "Cancelled" && $status !== "Received"): ?>
+                          <button class="text-red-500 hover:text-red-700 openCancelPoModal"
+                            data-id="<?= $poId ?>" data-number="<?= $poNumber ?>"
+                            title="Cancel Purchase Order">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clip-rule="evenodd" />
+                            </svg>
+                          </button>
+
+                          <button class="text-green-500 hover:text-green-700 openReceivePoModal"
+                            data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
+                            title="Mark this PO as received">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
+                                clip-rule="evenodd" />
+                            </svg>
+                          </button>
+
+                        <?php else: ?>
+                          <button class="text-red-500 hover:text-red-700 openArchivePoModal"
+                            data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
+                            title="Archive Purchase Order">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd"
+                                d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
+                                clip-rule="evenodd" />
+                            </svg>
+                          </button>
+                        <?php endif; ?>
+                      </div>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php else: ?>
                 <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <?= htmlspecialchars($po['po_number']) ?>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <?= htmlspecialchars($po['supplier_name']) ?>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <?= date('F j, Y, g:i A', strtotime($po['date'])) ?>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <?php
-                    $count = $purchase_items_count[$po['purchase_order_id']] ?? 0;
-                    echo $count . ' item' . ($count !== 1 ? 's' : '');
-                    ?>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ₱<?= number_format($po['grand_total'], 2) ?>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <?php
-                    $status = strtolower($po['status']);
-                    switch ($status) {
-                      case 'ordered':
-                        $color = 'bg-blue-100 text-blue-800';
-                        break;
-                      case 'received':
-                        $color = 'bg-green-100 text-green-800';
-                        break;
-                      case 'cancelled':
-                        $color = 'bg-red-100 text-red-800';
-                        break;
-                      default:
-                        $color = 'bg-gray-100 text-gray-800';
-                    }
-                    ?>
-                    <span
-                      class="status-label <?= $color ?> px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
-                      <?= ucfirst($status) ?>
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="viewPoBtn text-blue-400 hover:text-blue-600" title="View"
-                      data-po-number="<?= htmlspecialchars($po['po_number']) ?>"
-                      data-supplier="<?= htmlspecialchars($po['supplier_name']) ?>"
-                      data-date="<?= htmlspecialchars($po['date']) ?>"
-                      data-status="<?= htmlspecialchars($po['status']) ?>"
-                      data-created-by="<?= htmlspecialchars($po['created_by']) ?>"
-                      data-items='<?= json_encode($po['items']) ?>'>
-                      <!-- View icon -->
-                      <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                        <path fill-rule="evenodd"
-                          d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                          clip-rule="evenodd" />
-                      </svg>
-                    </button>
-                    <?php
-                    $status = $po['status'];
-                    $poId = $po['purchase_order_id'];
-                    $poNumber = htmlspecialchars($po['po_number']);
-                    ?>
-
-                    <?php if ($status !== "Cancelled" && $status !== "Received"): ?>
-                      <button class="text-red-500 hover:text-red-700 openCancelPoModal"
-                        data-id="<?= $poId ?>" data-number="<?= $poNumber ?>"
-                        title="Cancel Purchase Order">
-                        <!-- Cancel icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd"
-                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                            clip-rule="evenodd" />
-                        </svg>
-                      </button>
-
-                      <button class="text-green-500 hover:text-green-700 openReceivePoModal"
-                        data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
-                        title="Mark this PO as received">
-                        <!-- Receive icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd"
-                            d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
-                            clip-rule="evenodd" />
-                        </svg>
-                      </button>
-
-                    <?php else: ?>
-                      <button class="text-red-500 hover:text-red-700 openArchivePoModal"
-                        data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
-                        title="Archive Purchase Order">
-                        <!-- Archive icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd"
-                            d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                            clip-rule="evenodd" />
-                        </svg>
-                      </button>
-                    <?php endif; ?>
+                  <td colspan="7" class="px-6 py-10 text-center text-gray-500">
+                    No purchase orders found matching your filters.
                   </td>
                 </tr>
-              <?php endforeach; ?>
+              <?php endif; ?>
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Controls -->
+        <?php if ($totalPages > 1): ?>
+          <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
+            <div class="text-sm text-gray-700">
+              Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
+            </div>
+
+            <nav class="flex items-center space-x-1">
+              <?php
+              // Build query parameters for pagination links
+              $params = [];
+              if ($search !== '') $params[] = 'search=' . urlencode($search);
+              if ($statusFilter !== '') $params[] = 'status=' . urlencode($statusFilter);
+              $queryString = !empty($params) ? '&' . implode('&', $params) : '';
+              ?>
+
+              <!-- Previous -->
+              <?php if ($page > 1): ?>
+                <a href="?page=<?= $page - 1 ?><?= $queryString ?>"
+                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                    Previous
+                </a>
+              <?php else: ?>
+                <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                    Previous
+                </span>
+              <?php endif; ?>
+
+              <?php
+              $range = 2;
+              $start = max(1, $page - $range);
+              $end = min($totalPages, $page + $range);
+
+              // Show first page and ellipsis if needed
+              if ($start > 1): ?>
+                <a href="?page=1<?= $queryString ?>"
+                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                    1
+                </a>
+                <?php if ($start > 2): ?>
+                  <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                <?php endif; ?>
+              <?php endif; ?>
+
+              <?php
+              // Show page numbers in range
+              for ($i = $start; $i <= $end; $i++):
+                if ($i === $page): ?>
+                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
+                      <?= $i ?>
+                  </span>
+                <?php else: ?>
+                  <a href="?page=<?= $i ?><?= $queryString ?>"
+                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                      <?= $i ?>
+                  </a>
+                <?php endif; ?>
+              <?php endfor; ?>
+
+              <?php
+              // Show ellipsis and last page if needed
+              if ($end < $totalPages): ?>
+                <?php if ($end < $totalPages - 1): ?>
+                  <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                <?php endif; ?>
+                <a href="?page=<?= $totalPages ?><?= $queryString ?>"
+                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                    <?= $totalPages ?>
+                </a>
+              <?php endif; ?>
+
+              <!-- Next -->
+              <?php if ($page < $totalPages): ?>
+                <a href="?page=<?= $page + 1 ?><?= $queryString ?>"
+                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                    Next
+                </a>
+              <?php else: ?>
+                <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                    Next
+                </span>
+              <?php endif; ?>
+            </nav>
+          </div>
+        <?php endif; ?>
       </div>
     </section>
   </main>
@@ -320,7 +434,7 @@ $items = $database->select_items();
             class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
             <option value="">Select supplier</option>
             <?php foreach ($suppliers as $sp): ?>
-              <option value="<?php echo $sp['supplier_id']; ?>"><?php echo $sp['supplier_name']; ?></option>
+              <option value="<?= $sp['supplier_id'] ?>"><?= htmlspecialchars($sp['supplier_name']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -333,7 +447,7 @@ $items = $database->select_items();
                 class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 <option value="">Select item</option>
                 <?php foreach ($items as $item): ?>
-                  <option value="<?php echo $item['item_id']; ?>"><?php echo htmlspecialchars($item['item_name'], ENT_QUOTES); ?></option>
+                  <option value="<?= $item['item_id'] ?>"><?= htmlspecialchars($item['item_name'], ENT_QUOTES) ?></option>
                 <?php endforeach; ?>
               </select>
 
@@ -351,7 +465,7 @@ $items = $database->select_items();
         <div class="flex justify-end space-x-2 pt-4">
           <button type="button" id="cancelCreatePoModal"
             class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
-          <button type="submit" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">Create Purchase
+          <button type="submit" name="create_purchase_order" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">Create Purchase
             Order</button>
         </div>
       </form>
@@ -381,7 +495,6 @@ $items = $database->select_items();
       </form>
     </div>
   </div>
-
 
   <!-- View PO Modal -->
   <div id="viewPoModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
@@ -438,7 +551,6 @@ $items = $database->select_items();
     </div>
   </div>
 
-
   <!-- Archive Purchase Order Modal -->
   <div id="archivePurchaseOrderModal"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
@@ -480,7 +592,7 @@ $items = $database->select_items();
     const closeBtn = document.getElementById('sidebar-close');
 
     closeBtn.addEventListener('click', () => {
-      sidebar.classList.add('-translate-x-full'); // close sidebar
+      sidebar.classList.add('-translate-x-full');
     });
   </script>
 
@@ -490,7 +602,6 @@ $items = $database->select_items();
       sessionStorage.setItem('scrollPos', window.scrollY);
     });
 
-    // Restore scroll on load
     window.addEventListener('load', () => {
       const scrollPos = sessionStorage.getItem('scrollPos');
       if (scrollPos) {
@@ -516,6 +627,30 @@ $items = $database->select_items();
         errorAlert.style.display = 'none';
         fetch('unset_alert.php');
       }, 3000);
+    }
+  </script>
+
+  <!-- Auto-submit search form after user stops typing -->
+  <script>
+    let searchTimeout;
+    const searchInput = document.getElementById('poSearchInput');
+    const searchForm = searchInput ? searchInput.closest('form') : null;
+
+    if (searchInput && searchForm) {
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          searchForm.submit();
+        }, 500);
+      });
+    }
+
+    // Auto-submit when changing status filter
+    const statusFilter = document.getElementById('poStatusFilter');
+    if (statusFilter && searchForm) {
+      statusFilter.addEventListener('change', function() {
+        searchForm.submit();
+      });
     }
   </script>
 
@@ -553,7 +688,7 @@ $items = $database->select_items();
       class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
       <option value="">Select item</option>
       <?php foreach ($items as $item): ?>
-      <option value="<?php echo $item['item_id']; ?>"><?php echo $item['item_name']; ?></option>
+      <option value="<?= $item['item_id'] ?>"><?= htmlspecialchars($item['item_name']) ?></option>
       <?php endforeach; ?>
     </select>
     <input type="number" name="quantity[]" min="1" required value="1"
@@ -567,7 +702,6 @@ $items = $database->select_items();
         newItem.remove();
       });
     });
-
 
     // Remove item row
     document.querySelectorAll('.removeItemBtn').forEach(btn => {
@@ -732,8 +866,7 @@ $items = $database->select_items();
     });
   </script>
 
-
-  <!-- Delete Purchase Orders Script -->
+  <!-- Archive Purchase Orders Script -->
   <script>
     const archivePoButtons = document.querySelectorAll('.openArchivePoModal');
     const archivePoModal = document.getElementById('archivePurchaseOrderModal');
@@ -761,35 +894,6 @@ $items = $database->select_items();
       if (e.target === archivePoModal) {
         archivePoModal.classList.add('hidden');
       }
-    });
-  </script>
-
-  <!-- Filter & Serach Purchase Orders Script -->
-  <script>
-    document.addEventListener("DOMContentLoaded", function() {
-      const poSearchInput = document.getElementById('poSearchInput');
-      const poStatusFilter = document.getElementById('poStatusFilter');
-
-      function filterPurchaseOrders() {
-        const searchValue = poSearchInput.value.toLowerCase().trim();
-        const selectedStatus = poStatusFilter.value.toLowerCase().trim();
-        const rows = document.querySelectorAll('tbody tr');
-
-        rows.forEach(row => {
-          const poNumber = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
-          const supplier = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-          const statusSpan = row.querySelector('td:nth-child(6) span');
-          const status = statusSpan ? statusSpan.textContent.toLowerCase().trim() : '';
-
-          const matchesSearch = poNumber.includes(searchValue) || supplier.includes(searchValue);
-          const matchesStatus = selectedStatus === "" || status === selectedStatus;
-
-          row.style.display = (matchesSearch && matchesStatus) ? "" : "none";
-        });
-      }
-
-      poSearchInput.addEventListener('input', filterPurchaseOrders);
-      poStatusFilter.addEventListener('change', filterPurchaseOrders);
     });
   </script>
 </body>

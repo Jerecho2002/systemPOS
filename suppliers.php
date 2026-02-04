@@ -5,21 +5,18 @@ $database->create_supplier();
 $database->update_supplier();
 $database->archive_supplier();
 
-// Pagination settings
 $perPage = 5;
 $search  = trim($_GET['search'] ?? '');
 $page    = max(1, (int) ($_GET['page'] ?? 1));
 
 $offset = ($page - 1) * $perPage;
 
-// Get data with search filter
 $totalSuppliers = $database->getTotalSuppliersCount($search);
 $totalPages = max(1, ceil($totalSuppliers / $perPage));
 
 $suppliers = $database->select_suppliers_paginated($offset, $perPage, $search);
 $purchase_orders = $database->select_purchase_orders();
 
-// Calculate statistics
 $allSuppliers = $database->select_all_suppliers_for_stats();
 $grandTotal = array_sum(array_column($allSuppliers, 'total_spent'));
 $active_count = count(array_filter($allSuppliers, fn($sp) => $sp['status'] == 1));
@@ -215,6 +212,16 @@ function formatCompactCurrency($number)
                       <?php endif; ?>
                       <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div class="flex space-x-2">
+                          <button class="text-blue-400 hover:text-blue-600 openViewSupplierModal"
+                            data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
+                            data-contact="<?= htmlspecialchars($sp['contact_number']) ?>"
+                            data-email="<?= htmlspecialchars($sp['email']) ?>" data-status="<?= $sp['status'] ?>"
+                            title="View Supplier">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path
+                                d="M10 3C5 3 1.73 7.11 1.05 10c.68 2.89 3.95 7 8.95 7s8.27-4.11 8.95-7c-.68-2.89-3.95-7-8.95-7zM10 15a5 5 0 110-10 5 5 0 010 10zm0-2a3 3 0 100-6 3 3 0 000 6z" />
+                            </svg>
+                          </button>
                           <button class="text-green-400 hover:text-green-600 openEditSupplierModal"
                             data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
                             data-contact="<?= htmlspecialchars($sp['contact_number']) ?>"
@@ -227,23 +234,13 @@ function formatCompactCurrency($number)
                                 clip-rule="evenodd" />
                             </svg>
                           </button>
-                          <button class="text-red-500 hover:text-red-700 openArchiveSupplierModal"
+                           <button class="text-red-500 hover:text-red-700 openArchiveSupplierModal"
                             data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
                             title="Archive Supplier">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                               <path fill-rule="evenodd"
                                 d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
                                 clip-rule="evenodd" />
-                            </svg>
-                          </button>
-                          <button class="text-blue-400 hover:text-blue-600 openViewSupplierModal"
-                            data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
-                            data-contact="<?= htmlspecialchars($sp['contact_number']) ?>"
-                            data-email="<?= htmlspecialchars($sp['email']) ?>" data-status="<?= $sp['status'] ?>"
-                            title="View Supplier">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path
-                                d="M10 3C5 3 1.73 7.11 1.05 10c.68 2.89 3.95 7 8.95 7s8.27-4.11 8.95-7c-.68-2.89-3.95-7-8.95-7zM10 15a5 5 0 110-10 5 5 0 010 10zm0-2a3 3 0 100-6 3 3 0 000 6z" />
                             </svg>
                           </button>
                         </div>

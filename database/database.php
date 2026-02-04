@@ -227,33 +227,32 @@ class Database
         return $suppliers;
     }
 
-    // Get total suppliers count with search (only active suppliers)
-public function getTotalSuppliersCount($search = '')
-{
-    $sql = "SELECT COUNT(*) as total FROM (
+    public function getTotalSuppliersCount($search = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM (
             SELECT s.supplier_id
             FROM suppliers s
             LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
             WHERE s.status = 1";
-    
-    $params = [];
 
-    if ($search !== '') {
-        $sql .= " AND s.supplier_name LIKE :search";
-        $params[':search'] = '%' . $search . '%';
-    }
+        $params = [];
 
-    $sql .= " GROUP BY s.supplier_id
+        if ($search !== '') {
+            $sql .= " AND s.supplier_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " GROUP BY s.supplier_id
         ) as counted_suppliers";
 
-    $stmt = $this->conn()->prepare($sql);
-    $stmt->execute($params);
-    return (int) $stmt->fetchColumn();
-}
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
 
-public function select_suppliers_paginated($offset, $perPage, $search = '')
-{
-    $sql = "SELECT 
+    public function select_suppliers_paginated($offset, $perPage, $search = '')
+    {
+        $sql = "SELECT 
             s.*,
             COUNT(DISTINCT po.purchase_order_id) as order_count,
             MAX(po.date) as last_order_date,
@@ -261,33 +260,33 @@ public function select_suppliers_paginated($offset, $perPage, $search = '')
         FROM suppliers s
         LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
         WHERE s.status = 1";
-    
-    $params = [];
 
-    if ($search !== '') {
-        $sql .= " AND s.supplier_name LIKE :search";
-        $params[':search'] = '%' . $search . '%';
-    }
+        $params = [];
 
-    $sql .= " GROUP BY s.supplier_id
+        if ($search !== '') {
+            $sql .= " AND s.supplier_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " GROUP BY s.supplier_id
             ORDER BY s.supplier_name ASC 
             LIMIT :offset, :perPage";
 
-    $stmt = $this->conn()->prepare($sql);
+        $stmt = $this->conn()->prepare($sql);
 
-    foreach ($params as $k => $v) {
-        $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
 
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-public function select_all_suppliers_for_stats()
-{
-    $sql = "SELECT 
+    public function select_all_suppliers_for_stats()
+    {
+        $sql = "SELECT 
             s.*,
             COUNT(DISTINCT po.purchase_order_id) as order_count,
             MAX(po.date) as last_order_date,
@@ -297,10 +296,10 @@ public function select_all_suppliers_for_stats()
         GROUP BY s.supplier_id
         ORDER BY s.supplier_name ASC";
 
-    $stmt = $this->conn()->prepare($sql);
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
     public function create_item()
     {
@@ -420,15 +419,15 @@ public function select_all_suppliers_for_stats()
         }
     }
 
-    public function delete_item()
+    public function archive_item()
     {
-        if (isset($_POST['delete_item'])) {
-            $item_id = filter_input(INPUT_POST, 'delete_item_id', FILTER_SANITIZE_NUMBER_INT);
+        if (isset($_POST['archive_item'])) {
+            $item_id = filter_input(INPUT_POST, 'archive_item_id', FILTER_SANITIZE_NUMBER_INT);
 
-            $delete = $this->conn()->prepare("DELETE FROM items WHERE item_id = ?");
-            $delete->execute([$item_id]);
+            $archive = $this->conn()->prepare("UPDATE items SET is_deleted = 1 WHERE item_id = ?");
+            $archive->execute([$item_id]);
 
-            $_SESSION['create-success'] = "Deleted product successfully.";
+            $_SESSION['create-success'] = "Archived product successfully.";
         }
     }
 
@@ -493,7 +492,8 @@ public function select_all_suppliers_for_stats()
             FROM items
             LEFT JOIN categories ON items.category_id = categories.category_id
             LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
-            WHERE items.quantity > 0";
+            WHERE items.quantity > 0
+            AND items.is_deleted = 0";
 
         $params = [];
 
@@ -745,8 +745,9 @@ public function select_all_suppliers_for_stats()
         if (isset($_POST['archive_purchase_order'])) {
             $id = $_POST['purchase_order_id'];
 
+
             // Update the status to 0 (archived)
-            $archivePO = $this->conn()->prepare("UPDATE purchase_orders SET is_active = 0 WHERE purchase_order_id = ?");
+            $archivePO = $this->conn()->prepare("UPDATE purchase_orders SET is_deleted = 1 WHERE purchase_order_id = ?");
             $archivePO->execute([$id]);
 
             $_SESSION['create-success'] = "Purchase order archived successfully.";
@@ -781,6 +782,98 @@ public function select_all_suppliers_for_stats()
         $purchase_order_items = $sql->fetchAll();
 
         return $purchase_order_items;
+    }
+
+    public function getTotalPurchaseOrdersCount($search = '', $statusFilter = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM purchase_orders po
+            LEFT JOIN suppliers s ON po.supplier_id = s.supplier_id
+            WHERE po.is_deleted = 0";
+
+        $params = [];
+
+        // Search filter
+        if ($search !== '') {
+            $sql .= " AND (po.po_number LIKE :search 
+                  OR s.supplier_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        // Status filter
+        if ($statusFilter !== '') {
+            $sql .= " AND po.status = :status";
+            $params[':status'] = $statusFilter;
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function list_purchase_orders_paginated($offset, $perPage, $search = '', $statusFilter = '')
+    {
+        $sql = "SELECT 
+            po.purchase_order_id,
+            po.po_number,
+            po.supplier_id,
+            po.status,
+            po.grand_total,
+            po.date,
+            po.created_by,
+            s.supplier_name,
+            GROUP_CONCAT(
+                JSON_OBJECT(
+                    'item_name', i.item_name,
+                    'quantity', poi.quantity,
+                    'unit_cost', poi.unit_cost,
+                    'line_total', poi.line_total
+                )
+            ) as items
+        FROM purchase_orders po
+        LEFT JOIN suppliers s ON po.supplier_id = s.supplier_id
+        LEFT JOIN purchase_order_items poi ON po.purchase_order_id = poi.purchase_order_id
+        LEFT JOIN items i ON poi.item_id = i.item_id
+        WHERE po.is_deleted = 0";
+
+        $params = [];
+
+        // Search filter
+        if ($search !== '') {
+            $sql .= " AND (po.po_number LIKE :search 
+                  OR s.supplier_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        // Status filter
+        if ($statusFilter !== '') {
+            $sql .= " AND po.status = :status";
+            $params[':status'] = $statusFilter;
+        }
+
+        $sql .= " GROUP BY po.purchase_order_id
+            ORDER BY po.date DESC 
+            LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($results as &$po) {
+            if ($po['items']) {
+                $po['items'] = json_decode('[' . $po['items'] . ']', true);
+            } else {
+                $po['items'] = [];
+            }
+        }
+
+        return $results;
     }
 
     public function item_stock_adjust()
@@ -1799,22 +1892,24 @@ public function select_all_suppliers_for_stats()
             "Category '{$category_name}' updated successfully.";
     }
 
-    public function delete_category()
+    public function archive_category()
     {
-        if (isset($_POST['delete_category'])) {
-            $category_id = filter_input(INPUT_POST, 'delete_category_id', FILTER_SANITIZE_NUMBER_INT);
+        if (isset($_POST['archive_category'])) {
+            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
 
             if (!$category_id) {
                 $_SESSION['create-error'] = "Invalid category ID.";
                 return;
             }
 
-            $query = $this->conn()->prepare("DELETE FROM categories WHERE category_id = ?");
-            $query->execute([$category_id]);
+            $sql = "UPDATE categories SET is_deleted = 1 WHERE category_id = ?";
+            $stmt = $this->conn()->prepare($sql);
+            $stmt->execute([$category_id]);
 
-            $_SESSION['create-success'] = "Category deleted successfully.";
+            $_SESSION['create-success'] = "Category archived successfully.";
         }
     }
+
 
     public function select_categories()
     {

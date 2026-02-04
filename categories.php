@@ -4,7 +4,7 @@ $database->login_session();
 
 $database->create_category();
 $database->update_category();
-$database->delete_category();
+$database->archive_category();
 
 $perPage = 5;
 $search  = trim($_GET['search'] ?? '');
@@ -52,38 +52,39 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
         </header>
 
         <section class="bg-white rounded-xl shadow-md p-6">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+            <div class="flex items-center justify-between mb-4">
                 <div>
                     <h3 class="text-xl font-bold text-gray-800">Category Management</h3>
                     <p class="text-sm text-gray-500">Manage your product categories</p>
                 </div>
-                
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                    <!-- Search Bar -->
-                    <form method="GET" action="" class="relative w-full sm:w-64">
-                        <input
-                            type="text"
-                            name="search"
-                            id="searchInput"
-                            value="<?= htmlspecialchars($search) ?>"
-                            placeholder="Search categories..."
-                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                        <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
-                        
-                        <?php if ($search !== ''): ?>
-                            <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                <span class="material-icons text-sm">close</span>
-                            </a>
-                        <?php endif; ?>
-                    </form>
-                    
-                    <!-- Add Button -->
-                    <button id="openAddCategoryModal"
-                        class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
+
+                <div class="flex items-center space-x-2">
+                    <button id="openAddCategoryModal" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
                         + Add Category
                     </button>
                 </div>
             </div>
+
+
+            <!-- Search Bar -->
+            <form method="GET" action="" class="flex flex-col lg:flex-row items-stretch lg:items-center space-y-3 lg:space-y-0 lg:space-x-4 mb-4">
+                <div class="relative flex-1">
+                    <input
+                        type="text"
+                        name="search"
+                        id="searchInput"
+                        value="<?= htmlspecialchars($search) ?>"
+                        placeholder="Search categories..."
+                        class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
+                </div>
+
+                <?php if ($search !== ''): ?>
+                    <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <span class="material-icons text-sm">close</span>
+                    </a>
+                <?php endif; ?>
+            </form>
 
             <?php if (isset($_SESSION['create-success'])): ?>
                 <div id="successAlert"
@@ -130,6 +131,7 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
                     <tbody class="bg-white divide-y divide-gray-200">
                         <?php if (!empty($categories)): ?>
                             <?php foreach ($categories as $cat): ?>
+                                <?php if ((int)$cat['is_deleted'] === 1) continue; ?>
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($cat['category_name']) ?>
                                     </td>
@@ -155,15 +157,15 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
                                                         clip-rule="evenodd" />
                                                 </svg>
                                             </button>
-                                            <button class="text-red-500 hover:text-red-700 openDeleteCategoryModal"
+                                            <button
+                                                class="text-red-500 hover:text-red-700 openArchiveCategoryModal"
                                                 data-id="<?= $cat['category_id'] ?>"
                                                 data-name="<?= htmlspecialchars($cat['category_name']) ?>"
-                                                data-description="<?= htmlspecialchars($cat['category_description']) ?>"
-                                                title="Delete Category">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                                    fill="currentColor">
+                                                title="Archive Category">
+                                                <!-- Archive icon -->
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fill-rule="evenodd"
-                                                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                                        d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
                                                         clip-rule="evenodd" />
                                                 </svg>
                                             </button>
@@ -434,26 +436,26 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
         </div>
     </div>
 
-
-
-
-    <!-- Delete Category Modal -->
-    <div id="deleteCategoryModal"
+    <!-- Archive Category Modal -->
+    <div id="archiveCategoryModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
         <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete Category</h3>
-            <p class="text-sm text-gray-700 mb-4">
-                Are you sure you want to delete <span id="delete_category_name"
-                    class="font-medium text-red-600"></span>?
+            <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Category</h3>
+            <p class="mb-4 text-sm text-gray-700">
+                Are you sure you want to archive <span id="archive_category_name" class="font-bold"></span>?
+                This action can be undone.
             </p>
 
-            <form method="POST" action="<?= $_SERVER['PHP_SELF']; ?>" class="flex justify-end space-x-2">
-                <input type="hidden" name="delete_category_id" id="delete_category_id">
+            <form method="POST" class="flex justify-end space-x-2">
+                <input type="hidden" name="category_id" id="archive_category_id">
 
-                <button type="button" id="cancelDeleteCategoryModal"
-                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
-                <button type="submit" name="delete_category"
-                    class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                <button type="button" id="cancelArchiveCategory"
+                    class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+
+                <button type="submit" name="archive_category"
+                    class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+                    Archive
+                </button>
             </form>
         </div>
     </div>
@@ -580,34 +582,29 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
         });
     </script>
 
-    <!-- Delete Category Script -->
+    <!-- Archive Category Script -->
     <script>
-        const deleteCategoryButtons = document.querySelectorAll('.openDeleteCategoryModal');
-        const deleteCategoryModal = document.getElementById('deleteCategoryModal');
-        const cancelDeleteCategoryModal = document.getElementById('cancelDeleteCategoryModal');
+        const archiveButtons = document.querySelectorAll('.openArchiveCategoryModal');
+        const archiveModal = document.getElementById('archiveCategoryModal');
+        const cancelArchive = document.getElementById('cancelArchiveCategory');
 
-        deleteCategoryButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const id = button.dataset.id;
-                const name = button.dataset.name;
-
-                document.getElementById('delete_category_id').value = id;
-                document.getElementById('delete_category_name').textContent = name;
-
-                deleteCategoryModal.classList.remove('hidden');
+        archiveButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('archive_category_id').value = btn.dataset.id;
+                document.getElementById('archive_category_name').textContent = btn.dataset.name;
+                archiveModal.classList.remove('hidden');
             });
         });
 
-        cancelDeleteCategoryModal.addEventListener('click', () => {
-            deleteCategoryModal.classList.add('hidden');
+        cancelArchive.addEventListener('click', () => {
+            archiveModal.classList.add('hidden');
         });
 
-        window.addEventListener('click', (e) => {
-            if (e.target === deleteCategoryModal) {
-                deleteCategoryModal.classList.add('hidden');
+        window.addEventListener('click', e => {
+            if (e.target === archiveModal) {
+                archiveModal.classList.add('hidden');
             }
         });
     </script>
-
 
 </body>

@@ -3,7 +3,7 @@ include "database/database.php";
 $database->login_session();
 $database->create_item();
 $database->update_item();
-$database->delete_item();
+$database->archive_item();
 
 $categories = $database->select_categories();
 $suppliers = $database->select_suppliers();
@@ -58,7 +58,7 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
 
 <body class="bg-gray-50 flex">
 
-   <!-- Mobile Sidebar Toggle Button -->
+  <!-- Mobile Sidebar Toggle Button -->
   <button id="sidebar-toggle" class="md:hidden p-3 fixed top-4 left-4 z-60 text-white rounded shadow-lg"
     style="background-color: rgba(170, 170, 170, 0.82);">
     ☰
@@ -90,16 +90,16 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
       <!-- Search and Filters -->
       <form method="GET" action="" class="flex flex-col lg:flex-row items-stretch lg:items-center space-y-3 lg:space-y-0 lg:space-x-4 mb-4">
         <div class="relative flex-1">
-          <input 
-            type="text" 
-            name="search" 
-            id="productSearchInput" 
+          <input
+            type="text"
+            name="search"
+            id="productSearchInput"
             value="<?= htmlspecialchars($search) ?>"
             placeholder="Search products, barcodes, or supplier..."
             class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
           <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
         </div>
-        
+
         <select name="category" id="categoryFilter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">All Categories</option>
           <?php foreach ($categories as $cat): ?>
@@ -108,7 +108,7 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
             </option>
           <?php endforeach; ?>
         </select>
-        
+
         <select name="price" id="itemFilter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">All Prices</option>
           <option value="below" <?= $priceFilter === 'below' ? 'selected' : '' ?>>₱5,000 Below</option>
@@ -208,15 +208,15 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div class="flex space-x-2">
                         <button class="text-green-400 hover:text-green-600 openEditProductModal"
-                          data-id="<?= $item['item_id'] ?>" 
+                          data-id="<?= $item['item_id'] ?>"
                           data-name="<?= htmlspecialchars($item['item_name']) ?>"
                           data-barcode="<?= htmlspecialchars($item['barcode']) ?>"
                           data-description="<?= htmlspecialchars($item['description'] ?? '') ?>"
-                          data-category="<?= $item['category_id'] ?>" 
+                          data-category="<?= $item['category_id'] ?>"
                           data-supplier="<?= $item['supplier_id'] ?>"
-                          data-cost="<?= $item['cost_price'] ?>" 
+                          data-cost="<?= $item['cost_price'] ?>"
                           data-sell="<?= $item['selling_price'] ?>"
-                          data-qty="<?= $item['quantity'] ?>" 
+                          data-qty="<?= $item['quantity'] ?>"
                           data-min="<?= $item['min_stock'] ?>"
                           title="Edit Item">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -226,15 +226,15 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
                               clip-rule="evenodd" />
                           </svg>
                         </button>
-                        <button class="text-red-500 hover:text-red-700 openDeleteProductModal"
-                          data-id="<?= $item['item_id'] ?>" 
+                        <button class="text-red-500 hover:text-red-700 openArchiveProductModal"
+                          data-id="<?= $item['item_id'] ?>"
                           data-name="<?= htmlspecialchars($item['item_name']) ?>"
-                          title="Delete Item">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clip-rule="evenodd" />
-                          </svg>
+                          title="Archive Item">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd"
+                                d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
+                                clip-rule="evenodd" />
+                            </svg>
                         </button>
                       </div>
                     </td>
@@ -271,12 +271,12 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
               <!-- Previous -->
               <?php if ($page > 1): ?>
                 <a href="?page=<?= $page - 1 ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Previous
+                  class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                  Previous
                 </a>
               <?php else: ?>
                 <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Previous
+                  Previous
                 </span>
               <?php endif; ?>
 
@@ -288,8 +288,8 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
               // Show first page and ellipsis if needed
               if ($start > 1): ?>
                 <a href="?page=1<?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    1
+                  class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                  1
                 </a>
                 <?php if ($start > 2): ?>
                   <span class="px-3 py-2 text-sm text-gray-500">...</span>
@@ -301,12 +301,12 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
               for ($i = $start; $i <= $end; $i++):
                 if ($i === $page): ?>
                   <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                      <?= $i ?>
+                    <?= $i ?>
                   </span>
                 <?php else: ?>
                   <a href="?page=<?= $i ?><?= $queryString ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                      <?= $i ?>
+                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                    <?= $i ?>
                   </a>
                 <?php endif; ?>
               <?php endfor; ?>
@@ -318,20 +318,20 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
                   <span class="px-3 py-2 text-sm text-gray-500">...</span>
                 <?php endif; ?>
                 <a href="?page=<?= $totalPages ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    <?= $totalPages ?>
+                  class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                  <?= $totalPages ?>
                 </a>
               <?php endif; ?>
 
               <!-- Next -->
               <?php if ($page < $totalPages): ?>
                 <a href="?page=<?= $page + 1 ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Next
+                  class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                  Next
                 </a>
               <?php else: ?>
                 <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Next
+                  Next
                 </span>
               <?php endif; ?>
             </nav>
@@ -531,57 +531,64 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
     </div>
   </div>
 
-  <!-- Delete Product Modal -->
-  <div id="deleteProductModal"
+  <!-- Archive Product Modal -->
+  <div id="archiveProductModal"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
-      <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete Item</h3>
-      <p class="text-sm text-gray-700 mb-4">Are you sure you want to delete <span id="delete_product_name"
-          class="font-medium text-red-600"></span>?</p>
+    <div class="bg-white rounded-lg w-full max-w-sm p-6">
+      <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Product</h3>
+      <p class="mb-4 text-sm text-gray-700">
+        Are you sure you want to archive <span id="archive_product_name" class="font-bold"></span>?
+        This action can be undone.
+      </p>
 
-      <form method="POST" action="<?php $_SERVER['PHP_SELF']; ?>" class="flex justify-end space-x-2">
-        <input type="hidden" name="delete_item_id" id="delete_item_id">
-
-        <button type="button" id="cancelDeleteProductModal"
-          class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
-        <button type="submit" name="delete_item"
-          class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+      <form method="POST" action="<?php $_SERVER['PHP_SELF']; ?>">
+        <input type="hidden" name="archive_item_id" id="archive_item_id">
+        <div class="flex justify-end space-x-2">
+          <button type="button" id="cancelArchiveProductModalBtn"
+            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+            Cancel
+          </button>
+          <button type="submit" name="archive_item"
+            class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+            Confirm Archive
+          </button>
+        </div>
       </form>
     </div>
   </div>
 
   <!-- Auto-submit search form after user stops typing -->
-<script>
-  let searchTimeout;
-  const searchInput = document.getElementById('productSearchInput');
-  const searchForm = searchInput.closest('form');
+  <script>
+    let searchTimeout;
+    const searchInput = document.getElementById('productSearchInput');
+    const searchForm = searchInput.closest('form');
 
-  if (searchInput) {
-    searchInput.addEventListener('input', function() {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => {
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          searchForm.submit();
+        }, 500); // Wait 500ms after user stops typing
+      });
+    }
+
+    // Also auto-submit when changing filters
+    const categoryFilter = document.getElementById('categoryFilter');
+    const itemFilter = document.getElementById('itemFilter');
+
+    if (categoryFilter) {
+      categoryFilter.addEventListener('change', function() {
         searchForm.submit();
-      }, 500); // Wait 500ms after user stops typing
-    });
-  }
+      });
+    }
 
-  // Also auto-submit when changing filters
-  const categoryFilter = document.getElementById('categoryFilter');
-  const itemFilter = document.getElementById('itemFilter');
-
-  if (categoryFilter) {
-    categoryFilter.addEventListener('change', function() {
-      searchForm.submit();
-    });
-  }
-
-  if (itemFilter) {
-    itemFilter.addEventListener('change', function() {
-      searchForm.submit();
-    });
-  }
-</script>
-   <!-- BugerBar Toggle -->
+    if (itemFilter) {
+      itemFilter.addEventListener('change', function() {
+        searchForm.submit();
+      });
+    }
+  </script>
+  <!-- BugerBar Toggle -->
   <script>
     const sidebar = document.getElementById('mobile-sidebar');
     const toggleBtn = document.getElementById('sidebar-toggle');
@@ -591,7 +598,7 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
     });
   </script>
 
-<!-- BugerBar Close -->
+  <!-- BugerBar Close -->
   <script>
     const closeBtn = document.getElementById('sidebar-close');
 
@@ -680,30 +687,30 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
 
   <!-- Delete Product Script -->
   <script>
-    const deleteButtons = document.querySelectorAll('.openDeleteProductModal');
-    const deleteModal = document.getElementById('deleteProductModal');
-    const cancelDeleteModal = document.getElementById('cancelDeleteProductModal');
+    const archiveButtons = document.querySelectorAll('.openArchiveProductModal');
+    const archiveModal = document.getElementById('archiveProductModal');
+    const cancelArchiveBtn = document.getElementById('cancelArchiveProductModalBtn');
 
-    deleteButtons.forEach(button => {
+    archiveButtons.forEach(button => {
       button.addEventListener('click', () => {
         const id = button.dataset.id;
         const name = button.dataset.name;
 
-        document.getElementById('delete_item_id').value = id;
-        document.getElementById('delete_product_name').textContent = name;
+        document.getElementById('archive_item_id').value = id;
+        document.getElementById('archive_product_name').textContent = name;
 
-        deleteModal.classList.remove('hidden');
+        archiveModal.classList.remove('hidden');
       });
     });
 
-    cancelDeleteModal.addEventListener('click', () => {
-      deleteModal.classList.add('hidden');
+    cancelArchiveBtn.addEventListener('click', () => {
+      archiveModal.classList.add('hidden');
     });
 
-    // Optional: click outside to close
+    // Close by clicking outside
     window.addEventListener('click', (e) => {
-      if (e.target === deleteModal) {
-        deleteModal.classList.add('hidden');
+      if (e.target === archiveModal) {
+        archiveModal.classList.add('hidden');
       }
     });
   </script>
