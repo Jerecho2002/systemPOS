@@ -40,15 +40,15 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <span>Process Sales</span>
         </a>
 
-        <a href="sales_report.php"
+        <a href="sales.php"
             class="flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out 
-            <?php echo ($currentPage == 'sales_report.php') ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'; ?>">
+            <?php echo ($currentPage == 'sales.php') ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'; ?>">
             <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <span>Sales Reports</span>
+            <span>Sales</span>
         </a>
 
         <!-- Inventory Management Dropdown -->
@@ -58,7 +58,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             'stock_levels.php',
             'purchase_orders.php',
             'suppliers.php',
-            'inventory_reports.php'
         ]) ? 'true' : 'false'; ?> }" class="px-3">
             <button @click="open = !open"
                 class="flex items-center justify-between w-full py-2 text-left text-gray-600 hover:bg-gray-100 rounded-lg transition duration-150 ease-in-out">
@@ -78,7 +77,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                     'stock_levels.php' => 'Stock Levels',
                     'purchase_orders.php' => 'Purchase Orders',
                     'suppliers.php' => 'Suppliers',
-                    'inventory_reports.php' => 'Inventory Reports'
                 ];
 
                 foreach ($links as $file => $label) {
@@ -94,11 +92,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </div>
         </div>
 
-        <!-- Quotations & Builds Dropdown -->
+        <!-- Quotations & Archives Dropdown -->
         <div x-data="{ open: false }" class="px-3">
             <button @click="open = !open"
                 class="flex items-center justify-between w-full py-2 text-left text-gray-600 hover:bg-gray-100 rounded-lg transition duration-150 ease-in-out">
-                <span class="text-xs uppercase font-semibold text-gray-400">Quotations & Builds</span>
+                <span class="text-xs uppercase font-semibold text-gray-400">Quotations & Archives</span>
                 <svg :class="{ 'rotate-180': open }" class="h-4 w-4 transform transition-transform duration-200"
                     xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />

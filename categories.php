@@ -1,9 +1,21 @@
 <?php
 include "database/database.php";
+$database->login_session();
+
 $database->create_category();
 $database->update_category();
 $database->delete_category();
-$categories = $database->select_categories();
+
+$perPage = 5;
+$search  = trim($_GET['search'] ?? '');
+$page    = max(1, (int) ($_GET['page'] ?? 1));
+
+$offset = ($page - 1) * $perPage;
+
+$totalCategories = $database->getTotalCategoriesCount($search);
+$totalPages = max(1, ceil($totalCategories / $perPage));
+
+$categories = $database->select_categories_paginated($offset, $perPage, $search);
 ?>
 
 <head>
@@ -40,15 +52,37 @@ $categories = $database->select_categories();
         </header>
 
         <section class="bg-white rounded-xl shadow-md p-6">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
                 <div>
                     <h3 class="text-xl font-bold text-gray-800">Category Management</h3>
                     <p class="text-sm text-gray-500">Manage your product categories</p>
                 </div>
-                <button id="openAddCategoryModal"
-                    class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
-                    + Add Category
-                </button>
+                
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                    <!-- Search Bar -->
+                    <form method="GET" action="" class="relative w-full sm:w-64">
+                        <input
+                            type="text"
+                            name="search"
+                            id="searchInput"
+                            value="<?= htmlspecialchars($search) ?>"
+                            placeholder="Search categories..."
+                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
+                        
+                        <?php if ($search !== ''): ?>
+                            <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <span class="material-icons text-sm">close</span>
+                            </a>
+                        <?php endif; ?>
+                    </form>
+                    
+                    <!-- Add Button -->
+                    <button id="openAddCategoryModal"
+                        class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
+                        + Add Category
+                    </button>
+                </div>
             </div>
 
             <?php if (isset($_SESSION['create-success'])): ?>
@@ -66,6 +100,14 @@ $categories = $database->select_categories();
                 </div>
             <?php unset($_SESSION['create-error']);
             endif; ?>
+
+            <?php if ($search !== ''): ?>
+                <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                    Showing results for "<strong><?= htmlspecialchars($search) ?></strong>"
+                    (<?= $totalCategories ?> result<?= $totalCategories !== 1 ? 's' : '' ?>)
+                    <a href="?" class="ml-2 text-blue-600 hover:underline">Clear search</a>
+                </div>
+            <?php endif; ?>
 
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -86,49 +128,142 @@ $categories = $database->select_categories();
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        <?php foreach ($categories as $cat): ?>
+                        <?php if (!empty($categories)): ?>
+                            <?php foreach ($categories as $cat): ?>
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($cat['category_name']) ?>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <?= $cat['category_description'] ? htmlspecialchars($cat['category_description']) : "N/A" ?>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <div class="flex space-x-2">
+                                            <button
+                                                class="text-green-400 hover:text-green-600 openEditCategoryModal"
+                                                data-id="<?= $cat['category_id'] ?>"
+                                                data-name="<?= htmlspecialchars($cat['category_name']) ?>"
+                                                data-description="<?= htmlspecialchars($cat['category_description']) ?>"
+                                                data-category-type="<?= htmlspecialchars($cat['category_type']) ?>"
+                                                data-supports-quantity="<?= (int) $cat['supports_quantity'] ?>"
+                                                title="Edit Category">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                                                    fill="currentColor">
+                                                    <path
+                                                        d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                                    <path fill-rule="evenodd"
+                                                        d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                            <button class="text-red-500 hover:text-red-700 openDeleteCategoryModal"
+                                                data-id="<?= $cat['category_id'] ?>"
+                                                data-name="<?= htmlspecialchars($cat['category_name']) ?>"
+                                                data-description="<?= htmlspecialchars($cat['category_description']) ?>"
+                                                title="Delete Category">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                                                    fill="currentColor">
+                                                    <path fill-rule="evenodd"
+                                                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
                             <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= $cat['category_name'] ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?= $cat['category_description'] ? htmlspecialchars($cat['category_description']) : "N/A" ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <div class="flex space-x-2">
-                                        <button
-                                            class="text-green-400 hover:text-green-600 openEditCategoryModal"
-                                            data-id="<?= $cat['category_id'] ?>"
-                                            data-name="<?= htmlspecialchars($cat['category_name']) ?>"
-                                            data-description="<?= htmlspecialchars($cat['category_description']) ?>"
-                                            data-category-type="<?= htmlspecialchars($cat['category_type']) ?>"
-                                            data-supports-quantity="<?= (int) $cat['supports_quantity'] ?>">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                                fill="currentColor">
-                                                <path
-                                                    d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                                <path fill-rule="evenodd"
-                                                    d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
-                                                    clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                        <button class="text-red-500 hover:text-red-700 openDeleteCategoryModal"
-                                            data-id="<?= $cat['category_id'] ?>"
-                                            data-name="<?= htmlspecialchars($cat['category_name']) ?>"
-                                            data-description="<?= htmlspecialchars($cat['category_description']) ?>">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                                fill="currentColor">
-                                                <path fill-rule="evenodd"
-                                                    d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                                    clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                    </div>
+                                <td colspan="3" class="px-6 py-10 text-center text-gray-500">
+                                    <?= $search !== '' ? 'No categories found matching your search.' : 'No categories found.' ?>
                                 </td>
                             </tr>
-                        <?php endforeach; ?>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Controls -->
+            <?php if ($totalPages > 1): ?>
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
+                    <div class="text-sm text-gray-700">
+                        Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
+                    </div>
+
+                    <nav class="flex items-center space-x-1">
+                        <?php
+                        // Build search parameter for all pagination links
+                        $searchParam = $search !== '' ? '&search=' . urlencode($search) : '';
+                        ?>
+
+                        <!-- Previous -->
+                        <?php if ($page > 1): ?>
+                            <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                                Previous
+                            </a>
+                        <?php else: ?>
+                            <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                                Previous
+                            </span>
+                        <?php endif; ?>
+
+                        <?php
+                        $range = 2;
+                        $start = max(1, $page - $range);
+                        $end = min($totalPages, $page + $range);
+
+                        // Show first page and ellipsis if needed
+                        if ($start > 1): ?>
+                            <a href="?page=1<?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                                1
+                            </a>
+                            <?php if ($start > 2): ?>
+                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php
+                        // Show page numbers in range
+                        for ($i = $start; $i <= $end; $i++):
+                            if ($i === $page): ?>
+                                <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
+                                    <?= $i ?>
+                                </span>
+                            <?php else: ?>
+                                <a href="?page=<?= $i ?><?= $searchParam ?>"
+                                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                                    <?= $i ?>
+                                </a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php
+                        // Show ellipsis and last page if needed
+                        if ($end < $totalPages): ?>
+                            <?php if ($end < $totalPages - 1): ?>
+                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                            <?php endif; ?>
+                            <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                                <?= $totalPages ?>
+                            </a>
+                        <?php endif; ?>
+
+                        <!-- Next -->
+                        <?php if ($page < $totalPages): ?>
+                            <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                                Next
+                            </a>
+                        <?php else: ?>
+                            <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                                Next
+                            </span>
+                        <?php endif; ?>
+                    </nav>
+                </div>
+            <?php endif; ?>
         </section>
     </main>
 
@@ -361,6 +496,21 @@ $categories = $database->select_categories();
         }
     </script>
 
+    <!-- Auto-submit search form after user stops typing -->
+    <script>
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.form.submit();
+                }, 500); // Wait 500ms after user stops typing
+            });
+        }
+    </script>
+
     <!-- Add Category Script -->
     <script>
         const openCategoryBtn = document.getElementById('openAddCategoryModal');
@@ -430,9 +580,7 @@ $categories = $database->select_categories();
         });
     </script>
 
-
-    </script>
-
+    <!-- Delete Category Script -->
     <script>
         const deleteCategoryButtons = document.querySelectorAll('.openDeleteCategoryModal');
         const deleteCategoryModal = document.getElementById('deleteCategoryModal');

@@ -8,17 +8,6 @@ class Database
     private $fetchDefault = array(PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC);
     protected $conn;
 
-    // public function conn()
-    // {
-    //     try {
-    //         $this->conn = new PDO($this->serverName, $this->userName, $this->userPass, $this->fetchDefault);
-    //         return $this->conn;
-    //     } catch (PDOException $e) {
-    //         echo "Error : " . $e->getMessage();
-    //         exit;
-    //     }
-    // }
-
     public function conn()
     {
         if ($this->conn instanceof PDO) {
@@ -45,7 +34,7 @@ class Database
     public function login_session()
     {
         if (!isset($_SESSION['login-success'])) {
-            header("Location: login.php");
+            header("Location: index .php");
         }
     }
 
@@ -238,7 +227,80 @@ class Database
         return $suppliers;
     }
 
+    // Get total suppliers count with search (only active suppliers)
+public function getTotalSuppliersCount($search = '')
+{
+    $sql = "SELECT COUNT(*) as total FROM (
+            SELECT s.supplier_id
+            FROM suppliers s
+            LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
+            WHERE s.status = 1";
+    
+    $params = [];
 
+    if ($search !== '') {
+        $sql .= " AND s.supplier_name LIKE :search";
+        $params[':search'] = '%' . $search . '%';
+    }
+
+    $sql .= " GROUP BY s.supplier_id
+        ) as counted_suppliers";
+
+    $stmt = $this->conn()->prepare($sql);
+    $stmt->execute($params);
+    return (int) $stmt->fetchColumn();
+}
+
+public function select_suppliers_paginated($offset, $perPage, $search = '')
+{
+    $sql = "SELECT 
+            s.*,
+            COUNT(DISTINCT po.purchase_order_id) as order_count,
+            MAX(po.date) as last_order_date,
+            COALESCE(SUM(po.grand_total), 0) as total_spent
+        FROM suppliers s
+        LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
+        WHERE s.status = 1";
+    
+    $params = [];
+
+    if ($search !== '') {
+        $sql .= " AND s.supplier_name LIKE :search";
+        $params[':search'] = '%' . $search . '%';
+    }
+
+    $sql .= " GROUP BY s.supplier_id
+            ORDER BY s.supplier_name ASC 
+            LIMIT :offset, :perPage";
+
+    $stmt = $this->conn()->prepare($sql);
+
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v, PDO::PARAM_STR);
+    }
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+public function select_all_suppliers_for_stats()
+{
+    $sql = "SELECT 
+            s.*,
+            COUNT(DISTINCT po.purchase_order_id) as order_count,
+            MAX(po.date) as last_order_date,
+            COALESCE(SUM(po.grand_total), 0) as total_spent
+        FROM suppliers s
+        LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
+        GROUP BY s.supplier_id
+        ORDER BY s.supplier_name ASC";
+
+    $stmt = $this->conn()->prepare($sql);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
     public function create_item()
     {
@@ -384,6 +446,90 @@ class Database
         $items = $sql->fetchAll();
 
         return $items;
+    }
+
+    public function getTotalItemsCount($search = '', $categoryFilter = '', $priceFilter = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM items
+            LEFT JOIN categories ON items.category_id = categories.category_id
+            LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
+            WHERE items.quantity > 0";
+
+        $params = [];
+
+        // Search filter
+        if ($search !== '') {
+            $sql .= " AND (items.item_name LIKE :search 
+                  OR items.barcode LIKE :search 
+                  OR suppliers.supplier_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        // Category filter
+        if ($categoryFilter !== '') {
+            $sql .= " AND categories.category_name = :category";
+            $params[':category'] = $categoryFilter;
+        }
+
+        // Price filter
+        if ($priceFilter === 'below') {
+            $sql .= " AND items.selling_price <= 5000";
+        } elseif ($priceFilter === 'above') {
+            $sql .= " AND items.selling_price > 5000";
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    // Get paginated items with filters
+    public function select_items_paginated($offset, $perPage, $search = '', $categoryFilter = '', $priceFilter = '')
+    {
+        $sql = "SELECT 
+            items.*, 
+            categories.category_name,
+            suppliers.supplier_name
+            FROM items
+            LEFT JOIN categories ON items.category_id = categories.category_id
+            LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
+            WHERE items.quantity > 0";
+
+        $params = [];
+
+        // Search filter
+        if ($search !== '') {
+            $sql .= " AND (items.item_name LIKE :search 
+                  OR items.barcode LIKE :search 
+                  OR suppliers.supplier_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        // Category filter
+        if ($categoryFilter !== '') {
+            $sql .= " AND categories.category_name = :category";
+            $params[':category'] = $categoryFilter;
+        }
+
+        // Price filter
+        if ($priceFilter === 'below') {
+            $sql .= " AND items.selling_price <= 5000";
+        } elseif ($priceFilter === 'above') {
+            $sql .= " AND items.selling_price > 5000";
+        }
+
+        $sql .= " ORDER BY items.item_name ASC LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function create_purchase_order()
@@ -1279,46 +1425,66 @@ class Database
         }
     }
 
-    public function getLast7DaysSalesTrend()
+    public function getTotalSalesCount($search = '')
     {
-        date_default_timezone_set('Asia/Manila');
+        $sql = "SELECT COUNT(*) as total FROM sales WHERE is_deleted = 0";
+        $params = [];
 
-        $conn = $this->conn();
-
-        $dates = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $dates[] = date('Y-m-d', strtotime("-$i days"));
+        if ($search !== '') {
+            $sql .= " AND (transaction_id LIKE :search 
+              OR customer_name LIKE :search 
+              OR payment_method LIKE :search 
+              OR CAST(grand_total AS CHAR) LIKE :search)";
+            $like = '%' . $search . '%';
+            $params[':search'] = $like;
         }
 
-        $stmt = $conn->prepare("
-            SELECT DATE(date) as sale_date, 
-                SUM(grand_total) as total_sales, 
-                COUNT(*) as transaction_count
-            FROM sales
-            WHERE DATE(date) BETWEEN ? AND ?
-            GROUP BY DATE(date)
-            ORDER BY sale_date
-        ");
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
 
-        $stmt->execute([$dates[0], $dates[6]]);
+    public function select_sales_paginated($offset, $perPage, $search = '')
+    {
+        $sql = "
+        SELECT 
+            sale_id, transaction_id, customer_name, grand_total, payment_method,
+            DATE_FORMAT(date, '%Y-%m-%d') as date,
+            DATE_FORMAT(date, '%H:%i:%s') as time
+        FROM sales
+        WHERE is_deleted = 0
+    ";
+        $params = [];
 
-
-        $rawData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Initialize array with 0s for days with no sales
-        $data = [];
-        foreach ($dates as $d) {
-            $data[$d] = ['total_sales' => 0, 'transaction_count' => 0];
+        if ($search !== '') {
+            $sql .= " AND (transaction_id LIKE :search 
+              OR customer_name LIKE :search 
+              OR payment_method LIKE :search 
+              OR CAST(grand_total AS CHAR) LIKE :search)";
+            $like = '%' . $search . '%';
+            $params[':search'] = $like;
         }
 
-        foreach ($rawData as $row) {
-            $data[$row['sale_date']] = [
-                'total_sales' => (float) $row['total_sales'],
-                'transaction_count' => (int) $row['transaction_count']
-            ];
-        }
+        $sql .= " ORDER BY date DESC LIMIT :offset, :perPage";
 
-        return $data;
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function archiveSale($saleId)
+    {
+        $sql = "UPDATE sales SET is_deleted = 1 WHERE sale_id = :sale_id";
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->bindValue(':sale_id', $saleId, PDO::PARAM_INT);
+        return $stmt->execute();
     }
 
     public function getTopSellingProducts($limit = 5)
@@ -1421,91 +1587,6 @@ class Database
         return $result;
     }
 
-    public function getMonthlyOrdersSalesProfits()
-    {
-        $conn = $this->conn();
-
-        // 1. Get Sales Data (month, total sales, sales count)
-        $stmt = $conn->prepare("
-            SELECT
-                DATE_FORMAT(s.date, '%Y-%m') AS month,
-                SUM(s.grand_total) AS total_sales,
-                COUNT(s.sale_id) AS sales_count
-            FROM sales s
-            GROUP BY month
-        ");
-        $stmt->execute();
-        $salesDataRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $salesData = [];
-        foreach ($salesDataRaw as $row) {
-            $salesData[$row['month']] = [
-                'total_sales' => (float) $row['total_sales'],
-                'sales_count' => (int) $row['sales_count'],
-            ];
-        }
-
-        // 2. Get Cost Data (month, total cost)
-        $stmt = $conn->prepare("
-            SELECT
-                DATE_FORMAT(s.date, '%Y-%m') AS month,
-                SUM(si.quantity * i.cost_price) AS total_cost
-            FROM sale_items si
-            JOIN sales s ON si.sale_id = s.sale_id
-            JOIN items i ON si.item_id = i.item_id
-            GROUP BY month
-        ");
-        $stmt->execute();
-        $costDataRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $costData = [];
-        foreach ($costDataRaw as $row) {
-            $costData[$row['month']] = (float) $row['total_cost'];
-        }
-
-        // 3. Get Orders Data (month, total orders)
-        $stmt = $conn->prepare("
-            SELECT
-                DATE_FORMAT(po.date, '%Y-%m') AS month,
-                SUM(po.grand_total) AS total_orders
-            FROM purchase_orders po
-            WHERE po.status = 'Received'
-            GROUP BY month
-        ");
-        $stmt->execute();
-        $orderDataRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $orderData = [];
-        foreach ($orderDataRaw as $row) {
-            $orderData[$row['month']] = (float) $row['total_orders'];
-        }
-
-        // 4. Merge all months and prepare final data
-        $allMonths = array_unique(array_merge(
-            array_keys($salesData),
-            array_keys($costData),
-            array_keys($orderData)
-        ));
-        sort($allMonths);
-
-        $result = [];
-        foreach ($allMonths as $month) {
-            $total_sales = isset($salesData[$month]) ? $salesData[$month]['total_sales'] : 0;
-            $total_orders = isset($orderData[$month]) ? $orderData[$month] : 0;
-            $total_cost = isset($costData[$month]) ? $costData[$month] : 0;
-            $profit = $total_sales - $total_cost;
-
-            $result[] = [
-                'month' => $month,
-                'orders' => $total_orders,
-                'sales' => $total_sales,
-                'profit' => $profit,
-            ];
-        }
-
-        return $result;
-    }
-
     public function getTopProductsByValue($limit = 5)
     {
         $conn = $this->conn();
@@ -1529,34 +1610,6 @@ class Database
 
         $sql->execute();
         return $sql->fetchAll();
-    }
-
-
-    public function select_sales()
-    {
-        $sql = $this->conn()->prepare("
-            SELECT 
-                sales.sale_id,
-                sales.transaction_id,
-                sales.customer_name,
-                sales.grand_total,
-                sales.payment_method,
-                DATE_FORMAT(sales.date, '%Y-%m-%d') as date,
-                DATE_FORMAT(sales.date, '%H:%i:%s') as time
-            FROM sales
-            ORDER BY sales.date DESC
-        ");
-        $sql->execute();
-        return $sql->fetchAll();
-    }
-
-    public function select_sale_items()
-    {
-        $sql = $this->conn()->prepare('SELECT * FROM sale_items');
-        $sql->execute();
-        $sale_items = $sql->fetchAll();
-
-        return $sale_items;
     }
 
 
@@ -1763,8 +1816,6 @@ class Database
         }
     }
 
-
-
     public function select_categories()
     {
         $sql = $this->conn()->prepare("SELECT * FROM categories");
@@ -1800,6 +1851,47 @@ class Database
         $stmt = $this->conn()->prepare($sql);
         $stmt->execute([$categoryId]);
 
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getTotalCategoriesCount($search = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM categories";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " WHERE category_name LIKE :search";
+            $like = '%' . $search . '%';
+            $params[':search'] = $like;
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function select_categories_paginated($offset, $perPage, $search = '')
+    {
+        $sql = "SELECT * FROM categories";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " WHERE category_name LIKE :search";
+            $like = '%' . $search . '%';
+            $params[':search'] = $like;
+        }
+
+        $sql .= " ORDER BY category_name ASC LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
