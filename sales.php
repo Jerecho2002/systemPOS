@@ -130,6 +130,11 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
                                                     clip-rule="evenodd" />
                                             </svg>
                                         </button>
+                                        <button class="preview-sale-btn inline-flex items-center justify-center p-1 hover:opacity-80 transition-opacity text-red-600"
+                                            data-id="<?= $sale['sale_id'] ?>"
+                                            title="Generate Receipt">
+                                            <?php include 'assets/images/pdf-icon.php'; ?>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -337,6 +342,29 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
             }
         });
     </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const previewButtons = document.querySelectorAll('.preview-sale-btn');
+
+            previewButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+
+                    const saleId = this.getAttribute('data-id');
+
+                    if (!saleId) {
+                        alert('Invalid sale ID');
+                        return;
+                    }
+
+                    // Open sales receipt PDF
+                    window.open(`preview_sales_receipt_pdf.php?id=${saleId}`, '_blank');
+                });
+            });
+        });
+    </script>
+
 
 </body>
 

@@ -182,7 +182,6 @@ function formatCompactCurrency($number)
               <tbody class="bg-white divide-y divide-gray-200">
                 <?php if (!empty($suppliers)): ?>
                   <?php foreach ($suppliers as $sp): ?>
-                    <?php if($sp['status'] === 0) continue; ?>
                     <tr class="hover:bg-gray-50">
                       <td class="px-6 py-4 whitespace-nowrap">
                         <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($sp['supplier_name']) ?></p>

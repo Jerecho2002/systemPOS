@@ -27,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // no action or unknown
       break;
   }
+
+  header("Location: " . $_SERVER['REQUEST_URI']);
+    exit;
 }
 
 $items = $database->select_items();

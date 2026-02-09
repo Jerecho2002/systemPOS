@@ -146,6 +146,9 @@ class Database
                 $sql->execute([$supplier_name, $contact_number, $email, $status]);
                 $_SESSION['create-success'] = "Successfully added " . $supplier_name . " supplier";
             }
+
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -190,6 +193,9 @@ class Database
 
                 $_SESSION['create-success'] = "Successfully updated '{$supplier_name}' supplier.";
             }
+
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -198,11 +204,12 @@ class Database
         if (isset($_POST['archive_supplier'])) {
             $id = $_POST['supplier_id'];
 
-            // Update the supplier's status to 0 (archived)
-            $sql = $this->conn()->prepare("UPDATE suppliers SET status = 0 WHERE supplier_id = ?");
+            $sql = $this->conn()->prepare("UPDATE suppliers SET is_deleted = 1 WHERE supplier_id = ?");
             $sql->execute([$id]);
 
             $_SESSION['create-success'] = "Supplier archived successfully.";
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -259,7 +266,7 @@ class Database
             COALESCE(SUM(po.grand_total), 0) as total_spent
         FROM suppliers s
         LEFT JOIN purchase_orders po ON s.supplier_id = po.supplier_id
-        WHERE s.status = 1";
+        WHERE s.is_deleted = 0";
 
         $params = [];
 
@@ -365,6 +372,9 @@ class Database
             $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $philippineDateTime]);
 
             $_SESSION['create-success'] = "Successfully added item: " . htmlspecialchars($item_name);
+
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -416,6 +426,9 @@ class Database
                 $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $philippineDateTime, $item_id]);
                 $_SESSION['create-success'] = "Item '{$item_name}' has been updated successfully.";
             }
+
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -428,6 +441,9 @@ class Database
             $archive->execute([$item_id]);
 
             $_SESSION['create-success'] = "Archived product successfully.";
+
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -445,6 +461,60 @@ class Database
         $items = $sql->fetchAll();
 
         return $items;
+    }
+
+    public function getTotalStockItemsCount($search = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM items";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " WHERE item_name LIKE :search 
+                  OR barcode LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function select_stock_items_paginated($offset, $perPage, $search = '')
+    {
+        $sql = "SELECT 
+            items.*, 
+            categories.category_name,
+            suppliers.supplier_name,
+            CASE 
+                WHEN items.quantity <= 0 THEN 1
+                WHEN items.quantity > 0 AND items.quantity <= items.min_stock THEN 2
+                ELSE 3
+            END as stock_priority
+        FROM items
+        LEFT JOIN categories ON items.category_id = categories.category_id
+        LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id";
+
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " WHERE items.item_name LIKE :search 
+                  OR items.barcode LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " ORDER BY stock_priority ASC, items.item_name ASC 
+            LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getTotalItemsCount($search = '', $categoryFilter = '', $priceFilter = '')
@@ -637,6 +707,8 @@ class Database
 
                 $conn->commit();
                 $_SESSION['create-success'] = "Purchase order {$po_number} created successfully.";
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit;
             } catch (PDOException $e) {
                 $conn->rollBack();
                 $_SESSION['create-error'] = "Failed to create PO: " . $e->getMessage();
@@ -724,6 +796,8 @@ class Database
             $updatePo->execute([$po_id]);
 
             $_SESSION['create-success'] = "Inventory restocked successfully from PO #{$po_id}.";
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -737,6 +811,8 @@ class Database
             $stmt->execute([$po_id]);
 
             $_SESSION['create-success'] = "Purchase order #{$po_id} cancelled successfully.";
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -751,6 +827,8 @@ class Database
             $archivePO->execute([$id]);
 
             $_SESSION['create-success'] = "Purchase order archived successfully.";
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -928,6 +1006,9 @@ class Database
                     $conn->commit();
 
                     $_SESSION['create-success'] = "Stock successfully adjusted.";
+
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit;
                 } catch (PDOException $e) {
                     if ($conn->inTransaction()) {
                         $conn->rollBack();
@@ -951,7 +1032,7 @@ class Database
                 items i ON isa.item_id = i.item_id
             JOIN 
                 users u ON isa.adjust_by = u.user_id
-            ORDER BY isa.created_at DESC LIMIT 3
+            ORDER BY isa.created_at DESC LIMIT 5
         ");
 
         $sql->execute();
@@ -1803,6 +1884,9 @@ class Database
 
         $_SESSION['create-success'] =
             "Category '{$category_name}' added successfully.";
+
+        header("Location: " . $_SERVER['REQUEST_URI']);
+        exit;
     }
 
 
@@ -1890,6 +1974,9 @@ class Database
 
         $_SESSION['create-success'] =
             "Category '{$category_name}' updated successfully.";
+
+        header("Location: " . $_SERVER['REQUEST_URI']);
+        exit;
     }
 
     public function archive_category()
@@ -1907,6 +1994,9 @@ class Database
             $stmt->execute([$category_id]);
 
             $_SESSION['create-success'] = "Category archived successfully.";
+
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -2082,6 +2172,61 @@ class Database
             $_SESSION['create-error'] =
                 "Failed to save PC Build. Please try again.";
         }
+    }
+
+    public function getSaleDetails($saleId)
+    {
+        $sqlSale = "
+        SELECT 
+            s.sale_id,
+            s.transaction_id,
+            s.customer_name,
+            s.grand_total,
+            s.cash_received,
+            s.cash_change,
+            s.payment_method,
+            s.date,
+            u.username
+        FROM sales s
+        LEFT JOIN users u ON s.sold_by = u.user_id
+        WHERE s.sale_id = :sale_id
+          AND s.is_deleted = 0
+        LIMIT 1
+    ";
+
+        $stmt = $this->conn()->prepare($sqlSale);
+        $stmt->bindValue(':sale_id', $saleId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $sale = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$sale) {
+            return false;
+        }
+
+        $sqlItems = "
+        SELECT 
+            i.item_name,
+            si.quantity,
+            si.unit_price,
+            si.line_total
+        FROM sale_items si
+        INNER JOIN items i ON si.item_id = i.item_id
+        WHERE si.sale_id = :sale_id
+        ORDER BY si.sale_item_id ASC
+    ";
+
+        $stmtItems = $this->conn()->prepare($sqlItems);
+        $stmtItems->bindValue(':sale_id', $saleId, PDO::PARAM_INT);
+        $stmtItems->execute();
+
+        $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'sale' => $sale,
+            'items' => $items,
+            'grand_total' => $sale['grand_total']
+        ];
     }
 
     public function getPcBuildersByUser($userId)

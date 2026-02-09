@@ -2,8 +2,37 @@
 include "database/database.php";
 $database->login_session();
 $database->item_stock_adjust();
+
+$perPage = 5;
+$search  = trim($_GET['search'] ?? '');
+$page    = max(1, (int) ($_GET['page'] ?? 1));
+
+$offset = ($page - 1) * $perPage;
+
+$totalItems = $database->getTotalStockItemsCount($search);
+$totalPages = max(1, ceil($totalItems / $perPage));
+
+$items = $database->select_stock_items_paginated($offset, $perPage, $search);
+
+$all_items = $database->select_items();
 $stock_adjustment = $database->select_stock_adjustment();
-$items = $database->select_items();
+
+$low_stock = count(array_filter($all_items, fn($item) => $item['quantity'] > 0 && $item['quantity'] <= $item['min_stock']));
+$out_of_stock = count(array_filter($all_items, fn($item) => $item['quantity'] <= 0));
+$total_value = array_sum(array_map(fn($item) => $item['selling_price'] * $item['quantity'], $all_items));
+
+function formatCompactCurrency($number)
+{
+  if ($number >= 1_000_000_000) {
+    return '₱' . round($number / 1_000_000_000, 1) . 'B';
+  } elseif ($number >= 1_000_000) {
+    return '₱' . round($number / 1_000_000, 1) . 'M';
+  } elseif ($number >= 1_000) {
+    return '₱' . round($number / 1_000, 1) . 'k';
+  } else {
+    return '₱' . number_format($number, 0);
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -32,7 +61,6 @@ $items = $database->select_items();
     ☰
   </button>
 
-
   <?php include "sidebar.php"; ?>
 
   <!-- Main Content -->
@@ -53,31 +81,12 @@ $items = $database->select_items();
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
             <p class="text-sm text-gray-500">Total Items</p>
-            <h4 class="text-2xl font-bold"><?= count($items); ?></h4>
+            <h4 class="text-2xl font-bold"><?= count($all_items) ?></h4>
             <p class="text-xs text-gray-500">products in catalog</p>
           </div>
         </div>
         <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
           <div>
-            <?php
-            $low_stock = count(array_filter($items, fn($item) => $item['quantity'] > 0 && $item['quantity'] <= $item['min_stock']));
-            $out_of_stock = count(array_filter($items, fn($item) => $item['quantity'] <= 0));
-            $total_value = array_sum(array_map(fn($item) => $item['selling_price'] * $item['quantity'], $items));
-            ?>
-            <?php
-            function formatCompactCurrency($number)
-            {
-              if ($number >= 1_000_000_000) {
-                return '₱' . round($number / 1_000_000_000, 1) . 'B';
-              } elseif ($number >= 1_000_000) {
-                return '₱' . round($number / 1_000_000, 1) . 'M';
-              } elseif ($number >= 1_000) {
-                return '₱' . round($number / 1_000, 1) . 'k';
-              } else {
-                return '₱' . number_format($number, 0);
-              }
-            }
-            ?>
             <p class="text-sm text-gray-500">Low Stock Items</p>
             <h4 class="text-2xl font-bold"><?= $low_stock ?></h4>
             <p class="text-xs text-gray-500">need reordering</p>
@@ -101,28 +110,52 @@ $items = $database->select_items();
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="bg-white border rounded-xl p-6 lg:col-span-2">
-          <h4 class="text-lg font-semibold mb-2">Inventory Levels</h4>
-          <?php
-          if (isset($_SESSION['create-success'])) {
-            $success = $_SESSION['create-success'];
-            ?>
+          <!-- Search Bar -->
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="text-lg font-semibold">Inventory Levels</h4>
+            <form method="GET" action="" class="relative w-full max-w-md ml-4">
+              <input 
+                type="text" 
+                name="search" 
+                id="searchInput" 
+                value="<?= htmlspecialchars($search) ?>"
+                placeholder="Search items by name or barcode..."
+                class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+              <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
+              
+              <?php if ($search !== ''): ?>
+                <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <span class="material-icons text-sm">close</span>
+                </a>
+              <?php endif; ?>
+            </form>
+          </div>
+
+          <?php if (isset($_SESSION['create-success'])): ?>
             <div id="successAlert"
               class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
-              <?php echo $success ?>
+              <?= $_SESSION['create-success'] ?>
             </div>
-            <?php
-          } ?>
+            <?php unset($_SESSION['create-success']); ?>
+          <?php endif; ?>
 
-          <?php
-          if (isset($_SESSION['create-error'])) {
-            $error = $_SESSION['create-error'];
-            ?>
+          <?php if (isset($_SESSION['create-error'])): ?>
             <div id="errorAlert" class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
-              <?php echo $error ?>
+              <?= $_SESSION['create-error'] ?>
             </div>
-            <?php
-          } ?>
-          <p class="text-sm text-gray-500 mb-4">Items Awaiting Restock</p>
+            <?php unset($_SESSION['create-error']); ?>
+          <?php endif; ?>
+
+          <?php if ($search !== ''): ?>
+            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              Showing results for "<strong><?= htmlspecialchars($search) ?></strong>"
+              (<?= $totalItems ?> item<?= $totalItems !== 1 ? 's' : '' ?>)
+              <a href="?" class="ml-2 text-blue-600 hover:underline">Clear search</a>
+            </div>
+          <?php endif; ?>
+
+          <p class="text-sm text-gray-500 mb-4">Items ordered by priority: Out of Stock → Low Stock → In Stock</p>
+          
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
@@ -142,61 +175,152 @@ $items = $database->select_items();
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
-                <?php foreach ($items as $item): ?>
-                  <?php
-                  $qty = $item['quantity'];
-                  $min = $item['min_stock'];
+                <?php if (!empty($items)): ?>
+                  <?php foreach ($items as $item): ?>
+                    <?php
+                    $qty = $item['quantity'];
+                    $min = $item['min_stock'];
 
-                  if ($qty > 0 && $qty <= $min) {
-                    $statusText = "Low Stock";
-                    $statusClasses = "bg-red-100 text-red-800";
-                  } elseif ($qty <= 0) {
-                    $statusText = "Out of Stock";
-                    $statusClasses = "bg-red-100 text-red-800";
-                  } else {
-                    continue;
-                  }
-                  ?>
+                    if ($qty <= 0) {
+                      $statusText = "Out of Stock";
+                      $statusClasses = "bg-red-100 text-red-800";
+                    } elseif ($qty > 0 && $qty <= $min) {
+                      $statusText = "Low Stock";
+                      $statusClasses = "bg-yellow-100 text-yellow-800";
+                    } else {
+                      $statusText = "In Stock";
+                      $statusClasses = "bg-green-100 text-green-800";
+                    }
+                    ?>
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($item['item_name']) ?></p>
+                        <p class="text-xs text-gray-500"><?= htmlspecialchars($item['barcode']) ?></p>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        <?= $qty ?>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <p class="text-xs">Min: <?= $min ?></p>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium <?= $statusClasses ?>">
+                          <?= $statusText ?>
+                        </span>
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="px-4 py-2 border rounded-lg text-gray-700 text-sm hover:bg-gray-100 adjustBtn"
+                          data-item-id="<?= $item['item_id'] ?>" data-item-name="<?= htmlspecialchars($item['item_name']) ?>"
+                          data-current-qty="<?= $qty ?>">
+                          Adjust
+                        </button>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php else: ?>
                   <tr>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <p class="text-sm font-medium text-gray-900"><?= $item['item_name']; ?></p>
-                      <p class="text-xs text-gray-500"><?= htmlspecialchars($item['barcode']); ?></p>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      <?= $qty ?>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <p class="text-xs">Min: <?= $min; ?></p>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <span class="inline-block px-2 py-0.5 rounded text-xs font-medium <?= $statusClasses; ?>">
-                        <?= $statusText; ?>
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button class="px-4 py-2 border rounded-lg text-gray-700 text-sm hover:bg-gray-100 adjustBtn"
-                        data-item-id="<?= $item['item_id'] ?>" data-item-name="<?= $item['item_name'] ?>"
-                        data-current-qty="<?= $qty ?>">
-                        Adjust
-                      </button>
+                    <td colspan="5" class="px-6 py-10 text-center text-gray-500">
+                      <?= $search !== '' ? 'No items found matching your search.' : 'No items found.' ?>
                     </td>
                   </tr>
-                <?php endforeach; ?>
+                <?php endif; ?>
               </tbody>
             </table>
           </div>
+
+          <!-- Pagination Controls -->
+          <?php if ($totalPages > 1): ?>
+            <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
+              <div class="text-sm text-gray-700">
+                Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
+              </div>
+
+              <nav class="flex items-center space-x-1">
+                <?php
+                $searchParam = $search !== '' ? '&search=' . urlencode($search) : '';
+                ?>
+
+                <!-- Previous -->
+                <?php if ($page > 1): ?>
+                  <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
+                      class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                      Previous
+                  </a>
+                <?php else: ?>
+                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                      Previous
+                  </span>
+                <?php endif; ?>
+
+                <?php
+                $range = 2;
+                $start = max(1, $page - $range);
+                $end = min($totalPages, $page + $range);
+
+                // Show first page and ellipsis if needed
+                if ($start > 1): ?>
+                  <a href="?page=1<?= $searchParam ?>"
+                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                      1
+                  </a>
+                  <?php if ($start > 2): ?>
+                    <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                  <?php endif; ?>
+                <?php endif; ?>
+
+                <?php
+                // Show page numbers in range
+                for ($i = $start; $i <= $end; $i++):
+                  if ($i === $page): ?>
+                    <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
+                        <?= $i ?>
+                    </span>
+                  <?php else: ?>
+                    <a href="?page=<?= $i ?><?= $searchParam ?>"
+                        class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                        <?= $i ?>
+                    </a>
+                  <?php endif; ?>
+                <?php endfor; ?>
+
+                <?php
+                // Show ellipsis and last page if needed
+                if ($end < $totalPages): ?>
+                  <?php if ($end < $totalPages - 1): ?>
+                    <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                  <?php endif; ?>
+                  <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
+                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                      <?= $totalPages ?>
+                  </a>
+                <?php endif; ?>
+
+                <!-- Next -->
+                <?php if ($page < $totalPages): ?>
+                  <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
+                      class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                      Next
+                  </a>
+                <?php else: ?>
+                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                      Next
+                  </span>
+                <?php endif; ?>
+              </nav>
+            </div>
+          <?php endif; ?>
         </div>
 
         <div class="bg-white border rounded-xl p-6 col-span-1">
           <h4 class="text-lg font-semibold mb-2">Recent Adjustments</h4>
           <p class="text-sm text-gray-500 mb-4">Latest stock changes</p>
           <ul class="space-y-4">
-            <?php foreach ($stock_adjustment as $sa): ?>
+            <?php foreach (array_slice($stock_adjustment, 0, 10) as $sa): ?>
               <li class="flex justify-between items-start">
                 <div>
-                  <p class="text-sm font-medium text-gray-900"><?= $sa['item_name']; ?></p>
-                  <p class="text-xs text-gray-500"><?= htmlspecialchars($sa['reason_adjustment']); ?></p>
-                  <p class="text-xs text-gray-500"><?= htmlspecialchars($sa['username']); ?></p>
+                  <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($sa['item_name']) ?></p>
+                  <p class="text-xs text-gray-500"><?= htmlspecialchars($sa['reason_adjustment']) ?></p>
+                  <p class="text-xs text-gray-500"><?= htmlspecialchars($sa['username']) ?></p>
                 </div>
                 <div class="text-right">
                   <?php
@@ -205,18 +329,18 @@ $items = $database->select_items();
                   $sign = $adjustment > 0 ? '+' : '';
                   ?>
                   <span class="<?= $color ?> font-bold text-lg"><?= $sign . $adjustment ?></span>
-                  <p class="text-xs text-gray-500"><?= date('F j, Y, g:i A', strtotime($sa['created_at'])) ?></p>
+                  <p class="text-xs text-gray-500"><?= date('M j, g:i A', strtotime($sa['created_at'])) ?></p>
                 </div>
               </li>
             <?php endforeach; ?>
           </ul>
         </div>
-
+      </div>
     </section>
   </main>
 
   <!-- Stock Adjustment Modal -->
-  <div id="adjustModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div id="adjustModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
     <div class="bg-white rounded-lg shadow-lg w-96 p-6">
       <h2 class="text-xl font-semibold mb-4">Adjust Stock</h2>
       <form id="adjustForm" method="POST" action="">
@@ -277,12 +401,12 @@ $items = $database->select_items();
     });
   </script>
 
-<!-- BugerBar Close -->
+  <!-- BugerBar Close -->
   <script>
     const closeBtn = document.getElementById('sidebar-close');
 
     closeBtn.addEventListener('click', () => {
-      sidebar.classList.add('-translate-x-full'); // close sidebar
+      sidebar.classList.add('-translate-x-full');
     });
   </script>
 
@@ -292,7 +416,6 @@ $items = $database->select_items();
       sessionStorage.setItem('scrollPos', window.scrollY);
     });
 
-    // Restore scroll on load
     window.addEventListener('load', () => {
       const scrollPos = sessionStorage.getItem('scrollPos');
       if (scrollPos) {
@@ -321,6 +444,22 @@ $items = $database->select_items();
     }
   </script>
 
+  <!-- Auto-submit search form after user stops typing -->
+  <script>
+    let searchTimeout;
+    const searchInput = document.getElementById('searchInput');
+    const searchForm = searchInput.closest('form');
+
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          searchForm.submit();
+        }, 500);
+      });
+    }
+  </script>
+
   <!-- (+ -) Button Script -->
   <script>
     document.getElementById('decrementBtn').addEventListener('click', function () {
@@ -335,7 +474,6 @@ $items = $database->select_items();
       input.value = value + 1;
     });
   </script>
-
 
   <!-- Stock Adjustment Script -->
   <script>
@@ -353,14 +491,13 @@ $items = $database->select_items();
         const itemName = button.dataset.itemName;
         const currentQty = button.dataset.currentQty;
 
-        // Set hidden input and modal text
         modalItemId.value = itemId;
         modalItemName.textContent = itemName;
         modalCurrentQty.textContent = currentQty;
 
         adjustForm.reset();
+        document.getElementById('modalItemId').value = itemId;
 
-        // Show the modal
         adjustModal.classList.remove('hidden');
       });
     });
@@ -369,7 +506,6 @@ $items = $database->select_items();
       adjustModal.classList.add('hidden');
     });
 
-    // Close modal when clicking outside content
     adjustModal.addEventListener('click', e => {
       if (e.target === adjustModal) {
         adjustModal.classList.add('hidden');

@@ -1,5 +1,7 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF']);
+$userRole = $_SESSION['user-role'] ?? 'guest';
+$isAdmin = ($userRole === 'admin');
 ?>
 
 <aside id="mobile-sidebar" class="bg-white w-64 space-y-4 flex flex-col h-screen fixed inset-y-0 left-0 
@@ -16,6 +18,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
     </div>
 
     <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+        <?php if ($isAdmin): ?>
         <a href="dashboard.php"
             class="flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out 
             <?php echo ($currentPage == 'dashboard.php') ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'; ?>">
@@ -26,6 +29,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </svg>
             <span>Dashboard</span>
         </a>
+        <?php endif; ?>
 
         <p class="text-xs uppercase text-gray-400 font-semibold mt-4 mb-1 pt-2 px-3">Point of Sale (POS)</p>
 
@@ -40,6 +44,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <span>Process Sales</span>
         </a>
 
+        <?php if ($isAdmin): ?>
         <a href="sales.php"
             class="flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out 
             <?php echo ($currentPage == 'sales.php') ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'; ?>">
@@ -50,6 +55,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </svg>
             <span>Sales</span>
         </a>
+        <?php endif; ?>
 
         <!-- Inventory Management Dropdown -->
         <div x-data="{ open: <?php echo in_array($currentPage, [
@@ -71,13 +77,22 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <!-- Dropdown Links -->
             <div x-show="open" x-collapse class="mt-2 space-y-1 pl-3 border-l border-gray-200">
                 <?php
-                $links = [
-                    'categories.php' => 'Categories',
-                    'item_catalog.php' => 'Item Catalog',
-                    'stock_levels.php' => 'Stock Levels',
-                    'purchase_orders.php' => 'Purchase Orders',
-                    'suppliers.php' => 'Suppliers',
-                ];
+                // Define links based on role
+                if ($isAdmin) {
+                    $links = [
+                        'categories.php' => 'Categories',
+                        'item_catalog.php' => 'Item Catalog',
+                        'stock_levels.php' => 'Stock Levels',
+                        'purchase_orders.php' => 'Purchase Orders',
+                        'suppliers.php' => 'Suppliers',
+                    ];
+                } else {
+                    // Staff only sees Item Catalog and Stock Levels
+                    $links = [
+                        'item_catalog.php' => 'Item Catalog',
+                        'stock_levels.php' => 'Stock Levels',
+                    ];
+                }
 
                 foreach ($links as $file => $label) {
                     $isActive = ($currentPage == $file) ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100';
@@ -92,11 +107,13 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </div>
         </div>
 
-        <!-- Quotations & Archives Dropdown -->
-        <div x-data="{ open: false }" class="px-3">
+        <!-- Quotations & Archives Dropdown (Admin Only for Archives) -->
+        <div x-data="{ open: <?php echo in_array($currentPage, ['quotation.php', 'archives.php']) ? 'true' : 'false'; ?> }" class="px-3">
             <button @click="open = !open"
                 class="flex items-center justify-between w-full py-2 text-left text-gray-600 hover:bg-gray-100 rounded-lg transition duration-150 ease-in-out">
-                <span class="text-xs uppercase font-semibold text-gray-400">Quotations & Archives</span>
+                <span class="text-xs uppercase font-semibold text-gray-400">
+                    <?php echo $isAdmin ? 'Quotations & Archives' : 'Quotations'; ?>
+                </span>
                 <svg :class="{ 'rotate-180': open }" class="h-4 w-4 transform transition-transform duration-200"
                     xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -105,10 +122,18 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 
             <div x-show="open" x-collapse class="mt-2 space-y-1 pl-3 border-l border-gray-200">
                 <?php
-                $tools = [
-                    'quotation.php' => 'Quotations',
-                    'archives.php' => 'Archives'
-                ];
+                // Staff can only see Quotations, Admin can see both
+                if ($isAdmin) {
+                    $tools = [
+                        'quotation.php' => 'Quotations',
+                        'archives.php' => 'Archives'
+                    ];
+                } else {
+                    $tools = [
+                        'quotation.php' => 'Quotations'
+                    ];
+                }
+                
                 foreach ($tools as $file => $label) {
                     $isActive = ($currentPage == $file) ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100';
                     echo "
