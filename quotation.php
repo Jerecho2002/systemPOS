@@ -1,22 +1,30 @@
 <?php
 include "database/database.php";
 
-$database->createPcBuilder();
+$database->createPcBuilder(); // or login_session(), whatever this does
 $categories = $database->getAllCategories();
-$userId = $_SESSION['user_id'];
-$pcBuilders = $database->getPcBuildersByUser($userId);
-$itemsByCategory = [];
 
+$itemsByCategory = [];
 foreach ($categories as $category) {
     $itemsByCategory[] = [
-        'id'    => $category['category_id'],
-        'name'  => $category['category_name'],
-        'slug'  => $category['category_slug'],
+        'id'                => $category['category_id'],
+        'name'              => $category['category_name'],
+        'slug'              => $category['category_slug'],
         'category_type'     => $category['category_type'],
         'supports_quantity' => (int) $category['supports_quantity'],
-        'items' => $database->getItemsByCategoryId($category['category_id']),
+        'items'             => $database->getItemsByCategoryId($category['category_id']),
     ];
 }
+
+$search      = trim($_GET['search'] ?? '');
+$page        = max(1, (int)($_GET['page'] ?? 1));
+$perPage     = 5;
+$offset      = ($page - 1) * $perPage;
+
+$totalRecords = $database->getPcBuildersCount($search);
+$totalPages   = max(1, ceil($totalRecords / $perPage));
+
+$pcBuilders   = $database->getPcBuildersPaginated($search, $offset, $perPage);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -26,6 +34,8 @@ foreach ($categories as $category) {
     <title>Custom PC Builder</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="assets/tailwind.min.css" rel="stylesheet" />
+    <link href="assets/fonts.css" rel="stylesheet" />
+    <link href="assets/quotation.css" rel="stylesheet" />
 </head>
 
 <body class="bg-gray-100 min-h-screen flex">
@@ -47,46 +57,53 @@ foreach ($categories as $category) {
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Quotations</h1>
-                    <p class="text-sm text-gray-500">
-                        Manage and preview your saved PC quotations
-                    </p>
+                    <p class="text-sm text-gray-500">Manage and preview your saved PC quotations</p>
                 </div>
-
-                <button
-                    id="openBuilderModal"
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition">
+                <button id="openBuilderModal"
+                    class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
                     + New Quotation
                 </button>
             </div>
 
+            <!-- Search Bar -->
+            <div class="mb-4">
+                <form method="GET" action="quotation.php" class="flex gap-2">
+                    <input
+                        type="text"
+                        name="search"
+                        id="searchInput"
+                        value="<?= htmlspecialchars($_GET['search'] ?? '') ?>"
+                        placeholder="Search quotations..."
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <!-- Hidden submit allows Enter key to work -->
+                    <button type="submit" class="hidden"></button>
+                </form>
 
+                <?php if ($search !== ''): ?>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Showing results for "<span class="font-medium text-gray-700"><?= htmlspecialchars($search) ?></span>"
+                        (<?= $totalRecords ?> <?= $totalRecords === 1 ? 'result' : 'results' ?>)
+                        <a href="quotation.php" class="text-blue-600 hover:underline ml-1">Clear search</a>
+                    </p>
+                <?php endif; ?>
+            </div>
+
+            <!-- Table -->
             <table class="w-full border-collapse text-sm">
                 <thead class="bg-gray-100">
                     <tr>
                         <th class="p-3 text-left">Quotation Name</th>
-                        <th class="p-3 text-left">Status</th>
+                        <th class="p-3 text-left">Created By</th>
                         <th class="p-3 text-left">Created</th>
                         <th class="p-3 text-center">Actions</th>
                     </tr>
                 </thead>
-
                 <tbody>
                     <?php foreach ($pcBuilders as $builder): ?>
                         <tr class="border-b hover:bg-gray-50">
-                            <td class="p-3 font-medium">
-                                <?= htmlspecialchars($builder['pc_builder_name']) ?>
-                            </td>
-
-                            <td class="p-3">
-                                <span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
-                                    <?= htmlspecialchars($builder['status']) ?>
-                                </span>
-                            </td>
-
-                            <td class="p-3">
-                                <?= date('M d, Y', strtotime($builder['created_at'])) ?>
-                            </td>
-
+                            <td class="p-3 font-medium"><?= htmlspecialchars($builder['pc_builder_name']) ?></td>
+                            <td class="p-3 text-gray-600"><?= htmlspecialchars($builder['created_by'] ?? 'Unknown') ?></td>
+                            <td class="p-3"><?= date('M d, Y', strtotime($builder['created_at'])) ?></td>
                             <td class="p-3 text-center">
                                 <button class="preview-quote-btn inline-flex items-center justify-center p-1 hover:opacity-80 transition-opacity text-red-600"
                                     data-id="<?= $builder['pc_builder_id'] ?>"
@@ -98,89 +115,162 @@ foreach ($categories as $category) {
                     <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <!-- Pagination -->
+            <?php if ($totalPages > 1): ?>
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
+                    <div class="text-sm text-gray-700">
+                        Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
+                        — <?= $totalRecords ?> total quotations
+                    </div>
+
+                    <nav class="flex items-center space-x-1">
+                        <?php $searchParam = $search !== '' ? '&search=' . urlencode($search) : ''; ?>
+
+                        <!-- Previous -->
+                        <?php if ($page > 1): ?>
+                            <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                                Previous
+                            </a>
+                        <?php else: ?>
+                            <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                                Previous
+                            </span>
+                        <?php endif; ?>
+
+                        <?php
+                        $range = 2;
+                        $start = max(1, $page - $range);
+                        $end   = min($totalPages, $page + $range);
+                        if ($start > 1): ?>
+                            <a href="?page=1<?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">1</a>
+                            <?php if ($start > 2): ?>
+                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($i = $start; $i <= $end; $i++): ?>
+                            <?php if ($i === $page): ?>
+                                <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white"><?= $i ?></span>
+                            <?php else: ?>
+                                <a href="?page=<?= $i ?><?= $searchParam ?>"
+                                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                                    <?= $i ?>
+                                </a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($end < $totalPages): ?>
+                            <?php if ($end < $totalPages - 1): ?>
+                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
+                            <?php endif; ?>
+                            <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                                <?= $totalPages ?>
+                            </a>
+                        <?php endif; ?>
+
+                        <!-- Next -->
+                        <?php if ($page < $totalPages): ?>
+                            <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
+                                class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                                Next
+                            </a>
+                        <?php else: ?>
+                            <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
+                                Next
+                            </span>
+                        <?php endif; ?>
+                    </nav>
+                </div>
+            <?php endif; ?>
         </div>
 
-        <!-- REDESIGNED MODAL - Single Column Layout -->
+        <!-- PC Builder Modal -->
         <div id="pcBuilderModal"
-            class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 flex items-center justify-center p-2">
+            class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-3"
+            style="display:none;">
 
-            <div class="bg-white rounded-lg w-full max-w-3xl flex flex-col shadow-2xl my-4" style="height: 90vh;">
+            <div class="qm-shell">
 
-                <!-- Modal Header -->
-                <div class="flex justify-between items-center px-4 py-3 border-b bg-gray-50 rounded-t-lg flex-shrink-0">
-                    <h3 class="text-base font-bold text-gray-800">New Quotation</h3>
-                    <button id="closeBuilderModal"
-                        class="text-gray-400 hover:text-gray-600 text-2xl leading-none">
-                        &times;
-                    </button>
+                <!-- Header -->
+                <div class="qm-header">
+                    <div class="qm-header-left">
+                        <div class="qm-header-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3>New Quotation</h3>
+                            <p>Configure components and generate a price quote</p>
+                        </div>
+                    </div>
+                    <button id="closeBuilderModal" class="qm-close">&times;</button>
                 </div>
 
-                <!-- Modal Body - Scrollable Content -->
-                <div class="flex-1 overflow-y-auto p-4">
+                <!-- Progress bar -->
+                <div class="qm-progress-wrap">
+                    <div class="qm-progress-bar" id="qmProgressBar"></div>
+                </div>
 
-                    <form id="pc-builder-form" method="POST" class="space-y-3">
+                <!-- Body -->
+                <div class="qm-body">
 
-                        <!-- Quotation Name -->
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <label class="block text-sm font-semibold text-blue-900 mb-1.5">
-                                Quotation Name *
-                            </label>
-                            <input
-                                type="text"
-                                name="pc_builder_name"
-                                id="pc_builder_name"
-                                placeholder="Enter a name for this build..."
-                                required
-                                class="w-full p-2 border border-blue-300 rounded text-sm">
-                        </div>
+                    <!-- LEFT: Form -->
+                    <div class="qm-left">
 
-                        <!-- Component Selection -->
-                        <!-- Component Selection -->
-                        <div class="space-y-4">
+                        <form id="pc-builder-form" method="POST">
+
+                            <!-- Build Name -->
+                            <div class="qm-name-card">
+                                <label class="qm-label" for="pc_builder_name">Quotation Name</label>
+                                <input
+                                    type="text"
+                                    name="pc_builder_name"
+                                    id="pc_builder_name"
+                                    placeholder="e.g. Gaming Beast Pro, Budget Office PC..."
+                                    required
+                                    class="qm-name-input"
+                                    autocomplete="off">
+                            </div>
+
                             <?php
-                            // Group categories by type
-                            $pcParts = array_filter($itemsByCategory, fn($cat) => $cat['category_type'] === 'pc_part');
+                            $pcParts    = array_filter($itemsByCategory, fn($cat) => $cat['category_type'] === 'pc_part');
                             $accessories = array_filter($itemsByCategory, fn($cat) => $cat['category_type'] === 'accessory');
                             ?>
 
-                            <!-- PC PARTS Section -->
+                            <!-- PC Parts -->
                             <?php if (!empty($pcParts)): ?>
                                 <div>
-                                    <h5 class="text-sm font-bold text-gray-800 mb-3 pb-2 border-b-2 border-blue-500">
-                                        PC PARTS
-                                    </h5>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    <div class="qm-section-label">
+                                        <span class="pill pill-blue">PC Parts</span>
+                                        <div class="qm-section-line"></div>
+                                    </div>
+                                    <div class="qm-grid">
                                         <?php foreach ($pcParts as $category): ?>
-                                            <div class="bg-white border border-gray-200 rounded-lg p-3">
-                                                <label class="block text-xs font-semibold text-gray-700 mb-1.5">
+                                            <div class="qm-comp-card" data-card="category_<?= $category['id'] ?>">
+                                                <div class="qm-comp-title">
+                                                    <span class="qm-comp-dot"></span>
                                                     <?= htmlspecialchars($category['name']) ?>
-                                                </label>
-
+                                                </div>
                                                 <select
                                                     name="category_<?= $category['id'] ?>"
                                                     data-category-id="<?= $category['id'] ?>"
-                                                    class="w-full p-2 border border-gray-300 rounded bg-white text-sm">
-
-                                                    <option value="">Select</option>
-
+                                                    class="qm-select qm-component-select">
+                                                    <option value="">— Select —</option>
                                                     <?php foreach ($category['items'] as $item): ?>
-                                                        <option
-                                                            value="<?= $item['item_id'] ?>"
-                                                            data-price="<?= $item['selling_price'] ?>">
-                                                            <?= htmlspecialchars($item['item_name']) ?> - ₱<?= number_format($item['selling_price'], 2) ?>
+                                                        <option value="<?= $item['item_id'] ?>" data-price="<?= $item['selling_price'] ?>">
+                                                            <?= htmlspecialchars($item['item_name']) ?> — ₱<?= number_format($item['selling_price'], 2) ?>
                                                         </option>
                                                     <?php endforeach; ?>
                                                 </select>
-
                                                 <?php if ($category['supports_quantity']): ?>
-                                                    <div class="mt-2 flex items-center gap-2">
-                                                        <label class="text-xs text-gray-600">Qty:</label>
-                                                        <input
-                                                            type="number"
-                                                            name="quantity_<?= $category['id'] ?>"
-                                                            min="1"
-                                                            value="1"
-                                                            class="w-16 p-1.5 border border-gray-300 rounded text-sm">
+                                                    <div class="qm-qty-row">
+                                                        <span class="qm-qty-label">Qty</span>
+                                                        <input type="number" name="quantity_<?= $category['id'] ?>" min="1" value="1" class="qm-qty-input qm-qty" data-category-id="<?= $category['id'] ?>">
                                                     </div>
                                                 <?php endif; ?>
                                             </div>
@@ -189,44 +279,35 @@ foreach ($categories as $category) {
                                 </div>
                             <?php endif; ?>
 
-                            <!-- ACCESSORIES Section -->
+                            <!-- Accessories -->
                             <?php if (!empty($accessories)): ?>
                                 <div>
-                                    <h5 class="text-sm font-bold text-gray-800 mb-3 pb-2 border-b-2 border-green-500">
-                                        ACCESSORIES
-                                    </h5>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    <div class="qm-section-label">
+                                        <span class="pill pill-green">Accessories</span>
+                                        <div class="qm-section-line"></div>
+                                    </div>
+                                    <div class="qm-grid">
                                         <?php foreach ($accessories as $category): ?>
-                                            <div class="bg-white border border-gray-200 rounded-lg p-3">
-                                                <label class="block text-xs font-semibold text-gray-700 mb-1.5">
+                                            <div class="qm-comp-card accessory-card" data-card="category_<?= $category['id'] ?>">
+                                                <div class="qm-comp-title">
+                                                    <span class="qm-comp-dot"></span>
                                                     <?= htmlspecialchars($category['name']) ?>
-                                                </label>
-
+                                                </div>
                                                 <select
                                                     name="category_<?= $category['id'] ?>"
                                                     data-category-id="<?= $category['id'] ?>"
-                                                    class="w-full p-2 border border-gray-300 rounded bg-white text-sm">
-
-                                                    <option value="">Select</option>
-
+                                                    class="qm-select qm-component-select">
+                                                    <option value="">— Select —</option>
                                                     <?php foreach ($category['items'] as $item): ?>
-                                                        <option
-                                                            value="<?= $item['item_id'] ?>"
-                                                            data-price="<?= $item['selling_price'] ?>">
-                                                            <?= htmlspecialchars($item['item_name']) ?> - ₱<?= number_format($item['selling_price'], 2) ?>
+                                                        <option value="<?= $item['item_id'] ?>" data-price="<?= $item['selling_price'] ?>">
+                                                            <?= htmlspecialchars($item['item_name']) ?> — ₱<?= number_format($item['selling_price'], 2) ?>
                                                         </option>
                                                     <?php endforeach; ?>
                                                 </select>
-
                                                 <?php if ($category['supports_quantity']): ?>
-                                                    <div class="mt-2 flex items-center gap-2">
-                                                        <label class="text-xs text-gray-600">Qty:</label>
-                                                        <input
-                                                            type="number"
-                                                            name="quantity_<?= $category['id'] ?>"
-                                                            min="1"
-                                                            value="1"
-                                                            class="w-16 p-1.5 border border-gray-300 rounded text-sm">
+                                                    <div class="qm-qty-row">
+                                                        <span class="qm-qty-label">Qty</span>
+                                                        <input type="number" name="quantity_<?= $category['id'] ?>" min="1" value="1" class="qm-qty-input qm-qty" data-category-id="<?= $category['id'] ?>">
                                                     </div>
                                                 <?php endif; ?>
                                             </div>
@@ -234,65 +315,48 @@ foreach ($categories as $category) {
                                     </div>
                                 </div>
                             <?php endif; ?>
-                        </div>
 
-                    </form>
-
-                    <!-- Build Preview Section -->
-                    <div class="mt-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-                        <h4 class="font-bold text-sm mb-3 text-gray-800">Build Summary</h4>
-
-                        <div class="bg-white rounded-lg p-3 mb-3 border border-gray-200">
-                            <div class="space-y-2 text-xs">
-
-                                <!-- Build Name Preview -->
-                                <div class="pb-2 border-b">
-                                    <p class="text-xs text-gray-500 uppercase mb-0.5">Build Name</p>
-                                    <p class="font-semibold text-gray-800" data-part="pc_builder_name">--</p>
-                                </div>
-
-                                <!-- Components Preview -->
-                                <?php foreach ($categories as $category): ?>
-                                    <div class="pb-1.5 border-b border-gray-100 last:border-0">
-                                        <p class="text-gray-500 mb-0.5"><?= htmlspecialchars($category['category_name']) ?></p>
-                                        <p class="text-gray-700" data-part="category_<?= $category['category_id'] ?>">
-                                            Not selected
-                                        </p>
-                                    </div>
-                                <?php endforeach; ?>
-
-                            </div>
-                        </div>
-
-                        <!-- Total -->
-                        <div class="bg-blue-600 text-white rounded-lg p-3">
-                            <p class="text-xs uppercase mb-0.5 opacity-90">Total Price</p>
-                            <p class="text-xl font-bold" id="totalAmount">₱0.00</p>
-                        </div>
-
+                        </form>
                     </div>
-                </div>
 
-                <!-- Modal Footer -->
-                <div class="flex-shrink-0 border-t bg-gray-50 px-4 py-3 rounded-b-lg flex justify-end gap-2">
-                    <button
-                        type="button"
-                        id="cancelButton"
-                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 text-sm">
-                        Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        form="pc-builder-form"
-                        name="pc-build-btn"
-                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                    <!-- RIGHT: Live Summary Panel -->
+                    <div class="qm-right">
+                        <div class="qm-summary-header">Build Summary</div>
+
+                        <div class="qm-summary-name">
+                            <div class="slabel">Quotation Name</div>
+                            <div class="sval" id="qm-preview-name">—</div>
+                        </div>
+
+                        <div class="qm-summary-items" id="qm-summary-items">
+                            <?php foreach ($categories as $category): ?>
+                                <div class="qm-sitem" id="qm-sitem-<?= $category['category_id'] ?>">
+                                    <span class="si-cat"><?= htmlspecialchars($category['category_name']) ?></span>
+                                    <span class="si-name">Not selected</span>
+                                    <span class="si-price"></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <div class="qm-total-block">
+                            <div class="qm-total-label">Total Price</div>
+                            <div class="qm-total-val" id="totalAmount">₱0.00</div>
+                            <div class="qm-item-count" id="qm-item-count">0 components selected</div>
+                        </div>
+                    </div>
+
+                </div><!-- /body -->
+
+                <!-- Footer -->
+                <div class="qm-footer">
+                    <button type="button" id="cancelButton" class="qm-btn qm-btn-cancel">Cancel</button>
+                    <button type="submit" form="pc-builder-form" name="pc-build-btn" class="qm-btn qm-btn-save">
                         Save Quotation
                     </button>
                 </div>
 
             </div>
         </div>
-
     </main>
 
     <script>
@@ -318,7 +382,7 @@ foreach ($categories as $category) {
         });
     </script>
 
-    <!-- Modal Toggle Scripts -->
+    <!-- Modal Toggle -->
     <script>
         const openBuilderModal = document.getElementById('openBuilderModal');
         const pcBuilderModal = document.getElementById('pcBuilderModal');
@@ -326,121 +390,143 @@ foreach ($categories as $category) {
         const cancelButton = document.getElementById('cancelButton');
 
         const openModal = () => {
-            pcBuilderModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden'; // prevent background scroll
+            pcBuilderModal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
         };
 
         const closeModal = () => {
-            pcBuilderModal.classList.add('hidden');
-            document.body.style.overflow = ''; // restore scroll
+            pcBuilderModal.style.display = 'none';
+            document.body.style.overflow = '';
         };
 
         openBuilderModal.addEventListener('click', openModal);
         closeBuilderModal.addEventListener('click', closeModal);
         cancelButton.addEventListener('click', closeModal);
 
-        // Close on backdrop click
         window.addEventListener('click', (e) => {
-            if (e.target === pcBuilderModal) {
-                closeModal();
-            }
+            if (e.target === pcBuilderModal) closeModal();
         });
 
-        // Close on Escape key
+        // FIXED: was checking classList.contains('hidden') but modal now uses style.display
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !pcBuilderModal.classList.contains('hidden')) {
-                closeModal();
-            }
+            if (e.key === 'Escape' && pcBuilderModal.style.display === 'flex') closeModal();
         });
     </script>
 
-    <!-- Total Calculator -->
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('pc-builder-form');
+        (function() {
+            const nameInput = document.getElementById('pc_builder_name');
+            const previewName = document.getElementById('qm-preview-name');
             const totalEl = document.getElementById('totalAmount');
+            const countEl = document.getElementById('qm-item-count');
+            const progressBar = document.getElementById('qmProgressBar');
+            const selects = document.querySelectorAll('.qm-component-select');
+            const totalSelects = selects.length;
 
-            const formatPeso = (num) =>
-                '₱' + num.toLocaleString('en-PH', {
-                    minimumFractionDigits: 2
-                });
+            // Name preview
+            nameInput?.addEventListener('input', function() {
+                previewName.textContent = this.value.trim() || '—';
+            });
 
-            const calculateTotal = () => {
-                let total = 0;
-                const selects = form.querySelectorAll('select[data-category-id]');
-
-                selects.forEach(select => {
-                    const option = select.options[select.selectedIndex];
-                    if (!option || !option.dataset.price) return;
-
-                    const price = parseFloat(option.dataset.price) || 0;
-                    const categoryId = select.dataset.categoryId;
-
-                    const qtyInput = form.querySelector(`input[name="quantity_${categoryId}"]`);
-                    const quantity = qtyInput ? Math.max(1, parseInt(qtyInput.value) || 1) : 1;
-
-                    total += price * quantity;
-                });
-
-                totalEl.textContent = formatPeso(total);
-            };
-
-            form.addEventListener('change', calculateTotal);
-            form.addEventListener('input', calculateTotal);
-            calculateTotal();
-        });
-    </script>
-
-    <!-- Live Preview Updates -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const showOrDash = (str) => (str && str.trim() ? str : 'Not selected');
-
-            // Build name preview
-            const buildNameInput = document.getElementById('pc_builder_name');
-            const buildNamePreview = document.querySelector('[data-part="pc_builder_name"]');
-
-            if (buildNameInput && buildNamePreview) {
-                buildNamePreview.textContent = showOrDash(buildNameInput.value);
-                buildNameInput.addEventListener('input', (e) => {
-                    buildNamePreview.textContent = showOrDash(e.target.value);
-                });
-            }
-
-            // Component previews
-            const selects = document.querySelectorAll('#pc-builder-form select');
+            // Component select change
             selects.forEach(select => {
-                const name = select.name;
-                const previewEl = document.querySelector(`[data-part="${name}"]`);
-                if (!previewEl) return;
+                select.addEventListener('change', function() {
+                    const catId = this.dataset.categoryId;
+                    const card = document.querySelector(`[data-card="category_${catId}"]`);
+                    const sitem = document.getElementById(`qm-sitem-${catId}`);
+                    const qtyInput = document.querySelector(`.qm-qty[data-category-id="${catId}"]`);
 
-                const initialOption = select.options[select.selectedIndex];
-                previewEl.textContent = showOrDash(initialOption ? initialOption.textContent : '');
+                    const selected = this.options[this.selectedIndex];
+                    const price = parseFloat(selected.dataset.price) || 0;
+                    const qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
 
-                select.addEventListener('change', (e) => {
-                    const selected = e.target.options[e.target.selectedIndex];
-                    previewEl.textContent = showOrDash(selected ? selected.textContent : '');
+                    if (this.value) {
+                        // Mark card selected
+                        card?.classList.add('selected');
+
+                        // Update summary
+                        if (sitem) {
+                            sitem.classList.add('filled');
+                            sitem.querySelector('.si-name').textContent = selected.text.split(' — ')[0];
+                            sitem.querySelector('.si-price').textContent = qty > 1 ?
+                                `₱${(price * qty).toLocaleString('en-PH', {minimumFractionDigits:2})} (×${qty})` :
+                                `₱${price.toLocaleString('en-PH', {minimumFractionDigits:2})}`;
+                        }
+                    } else {
+                        card?.classList.remove('selected');
+                        if (sitem) {
+                            sitem.classList.remove('filled');
+                            sitem.querySelector('.si-name').textContent = 'Not selected';
+                            sitem.querySelector('.si-price').textContent = '';
+                        }
+                    }
+
+                    recalc();
+                });
+
+                // Qty changes
+                const catId = select.dataset.categoryId;
+                const qtyInput = document.querySelector(`.qm-qty[data-category-id="${catId}"]`);
+                qtyInput?.addEventListener('input', () => {
+                    // Trigger select change to refresh price
+                    select.dispatchEvent(new Event('change'));
                 });
             });
-        });
+
+            function recalc() {
+                let total = 0,
+                    count = 0;
+
+                selects.forEach(sel => {
+                    if (!sel.value) return;
+                    const price = parseFloat(sel.options[sel.selectedIndex].dataset.price) || 0;
+                    const catId = sel.dataset.categoryId;
+                    const qty = parseInt(document.querySelector(`.qm-qty[data-category-id="${catId}"]`)?.value) || 1;
+                    total += price * qty;
+                    count++;
+                });
+
+                totalEl.textContent = '₱' + total.toLocaleString('en-PH', {
+                    minimumFractionDigits: 2
+                });
+                countEl.textContent = count + ' component' + (count !== 1 ? 's' : '') + ' selected';
+
+                // Progress bar
+                const pct = totalSelects > 0 ? (count / totalSelects) * 100 : 0;
+                progressBar.style.width = pct + '%';
+            }
+        })();
     </script>
 
-    <!-- Sidebar Toggle -->
+    <!-- Sidebar Toggle & Search -->
     <script>
         const sidebar = document.getElementById('mobile-sidebar');
         const toggleBtn = document.getElementById('sidebar-toggle');
-
-        toggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('-translate-x-full');
-        });
-    </script>
-
-    <!-- Sidebar Close -->
-    <script>
         const closeBtn = document.getElementById('sidebar-close');
-        closeBtn.addEventListener('click', () => {
-            sidebar.classList.add('-translate-x-full');
-        });
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                sidebar?.classList.toggle('-translate-x-full');
+            });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                sidebar?.classList.add('-translate-x-full');
+            });
+        }
+
+        // Auto-submit search form after user stops typing
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.form.submit();
+                }, 500);
+            });
+        }
     </script>
 
     <!-- Save scroll position -->

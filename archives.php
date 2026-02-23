@@ -1,6 +1,7 @@
 <?php
 include "database/archiveDatabase.php";
 $database->login_session();
+$database->admin_session();
 
 // Handle Restore
 if (isset($_POST['restore_record'])) {
@@ -58,6 +59,12 @@ $pages = max(1, ceil($total / $perPage));
 
 $records = $database->getArchivedPaginated($type, $offset, $perPage, $search);
 $tableConfig = $database->getTableConfig($type);
+
+$stockBadgeCount = 0;
+if (isset($database) && method_exists($database, 'getStockAlertCounts')) {
+    $stockStats = $database->getStockAlertCounts();
+    $stockBadgeCount = ($stockStats['out_of_stock'] ?? 0) + ($stockStats['low_stock'] ?? 0);
+}
 ?>
 
 <!DOCTYPE html>
@@ -67,7 +74,7 @@ $tableConfig = $database->getTableConfig($type);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Archives - <?= $tableConfig['label'] ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/tailwind.min.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 </head>
 
@@ -85,26 +92,29 @@ $tableConfig = $database->getTableConfig($type);
         <!-- Success/Error Messages -->
         <?php if (isset($_SESSION['restore-success'])): ?>
             <div class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-                <?= $_SESSION['restore-success']; unset($_SESSION['restore-success']); ?>
+                <?= $_SESSION['restore-success'];
+                unset($_SESSION['restore-success']); ?>
             </div>
         <?php endif; ?>
 
         <?php if (isset($_SESSION['delete-success'])): ?>
             <div class="mb-4 p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg">
-                <?= $_SESSION['delete-success']; unset($_SESSION['delete-success']); ?>
+                <?= $_SESSION['delete-success'];
+                unset($_SESSION['delete-success']); ?>
             </div>
         <?php endif; ?>
 
         <?php if (isset($_SESSION['clear-success'])): ?>
             <div class="mb-4 p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg">
-                <?= $_SESSION['clear-success']; unset($_SESSION['clear-success']); ?>
+                <?= $_SESSION['clear-success'];
+                unset($_SESSION['clear-success']); ?>
             </div>
         <?php endif; ?>
 
         <?php if (isset($_SESSION['restore-error']) || isset($_SESSION['delete-error']) || isset($_SESSION['clear-error'])): ?>
             <div class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                <?= $_SESSION['restore-error'] ?? $_SESSION['delete-error'] ?? $_SESSION['clear-error']; 
-                    unset($_SESSION['restore-error'], $_SESSION['delete-error'], $_SESSION['clear-error']); 
+                <?= $_SESSION['restore-error'] ?? $_SESSION['delete-error'] ?? $_SESSION['clear-error'];
+                unset($_SESSION['restore-error'], $_SESSION['delete-error'], $_SESSION['clear-error']);
                 ?>
             </div>
         <?php endif; ?>
@@ -138,11 +148,11 @@ $tableConfig = $database->getTableConfig($type);
 
                 <!-- Clear All Button -->
                 <?php if ($total > 0): ?>
-                    <button 
+                    <button
                         onclick="openClearAllModal()"
                         class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2 whitespace-nowrap">
                         <span class="material-icons text-sm">delete_forever</span>
-                        Clear All
+                        Delete All
                     </button>
                 <?php endif; ?>
             </div>
@@ -179,7 +189,7 @@ $tableConfig = $database->getTableConfig($type);
                                         <td class="px-6 py-4 text-sm text-gray-800">
                                             <?php
                                             $value = $row[$column] ?? '—';
-                                            
+
                                             // Format price columns
                                             if (stripos($column, 'price') !== false || stripos($column, 'total') !== false) {
                                                 $value = $value !== '—' ? '₱' . number_format((float)$value, 2) : '—';
@@ -226,7 +236,7 @@ $tableConfig = $database->getTableConfig($type);
                                                 $statusClass = $paymentColors[$value] ?? 'bg-gray-100 text-gray-800';
                                                 $value = "<span class='px-2 py-1 rounded-full text-xs font-medium {$statusClass}'>{$value}</span>";
                                             }
-                                            
+
                                             echo $value;
                                             ?>
                                         </td>
@@ -258,7 +268,7 @@ $tableConfig = $database->getTableConfig($type);
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?= count($tableConfig['display_columns']) + 1 ?>" 
+                                <td colspan="<?= count($tableConfig['display_columns']) + 1 ?>"
                                     class="px-6 py-16 text-center">
                                     <div class="flex flex-col items-center gap-3">
                                         <span class="material-icons text-gray-300" style="font-size: 48px;">inventory_2</span>
@@ -292,7 +302,7 @@ $tableConfig = $database->getTableConfig($type);
                             <?php
                             $start = max(1, $page - 2);
                             $end = min($pages, $page + 2);
-                            
+
                             if ($start > 1): ?>
                                 <a href="?type=<?= $type ?>&search=<?= urlencode($search) ?>&page=1"
                                     class="px-3 py-2 rounded-md text-sm border hover:bg-gray-100">1</a>
@@ -447,4 +457,5 @@ $tableConfig = $database->getTableConfig($type);
         });
     </script>
 </body>
+
 </html>

@@ -1,6 +1,7 @@
 <?php
 include "database/database.php";
 $database->login_session();
+$database->admin_session();
 $database->create_purchase_order();
 $database->cancel_purchase_order();
 $database->archive_purchase_order();
@@ -129,16 +130,16 @@ function formatCompactCurrency($number)
         <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between mb-4 gap-3">
           <form method="GET" action="" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
             <div class="relative flex-1 max-w-md">
-              <input 
-                type="text" 
-                name="search" 
-                id="poSearchInput" 
+              <input
+                type="text"
+                name="search"
+                id="poSearchInput"
                 value="<?= htmlspecialchars($search) ?>"
                 placeholder="Search by PO number or supplier..."
                 class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
             </div>
-            
+
             <select name="status" id="poStatusFilter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">All Statuses</option>
               <option value="Ordered" <?= $statusFilter === 'Ordered' ? 'selected' : '' ?>>Ordered</option>
@@ -152,7 +153,7 @@ function formatCompactCurrency($number)
               </a>
             <?php endif; ?>
           </form>
-          
+
           <button id="createPoButton" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
             + Create PO
           </button>
@@ -171,7 +172,7 @@ function formatCompactCurrency($number)
         <?php endif; ?>
 
         <h4 class="text-lg font-semibold mb-2">Purchase Orders</h4>
-        
+
         <?php if (isset($_SESSION['create-success'])): ?>
           <div id="successAlert"
             class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
@@ -188,7 +189,7 @@ function formatCompactCurrency($number)
         <?php endif; ?>
 
         <p class="text-sm text-gray-500 mb-4">List purchase orders from suppliers.</p>
-        
+
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -345,12 +346,12 @@ function formatCompactCurrency($number)
               <!-- Previous -->
               <?php if ($page > 1): ?>
                 <a href="?page=<?= $page - 1 ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Previous
+                  class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                  Previous
                 </a>
               <?php else: ?>
                 <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Previous
+                  Previous
                 </span>
               <?php endif; ?>
 
@@ -362,8 +363,8 @@ function formatCompactCurrency($number)
               // Show first page and ellipsis if needed
               if ($start > 1): ?>
                 <a href="?page=1<?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    1
+                  class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                  1
                 </a>
                 <?php if ($start > 2): ?>
                   <span class="px-3 py-2 text-sm text-gray-500">...</span>
@@ -375,12 +376,12 @@ function formatCompactCurrency($number)
               for ($i = $start; $i <= $end; $i++):
                 if ($i === $page): ?>
                   <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                      <?= $i ?>
+                    <?= $i ?>
                   </span>
                 <?php else: ?>
                   <a href="?page=<?= $i ?><?= $queryString ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                      <?= $i ?>
+                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                    <?= $i ?>
                   </a>
                 <?php endif; ?>
               <?php endfor; ?>
@@ -392,20 +393,20 @@ function formatCompactCurrency($number)
                   <span class="px-3 py-2 text-sm text-gray-500">...</span>
                 <?php endif; ?>
                 <a href="?page=<?= $totalPages ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    <?= $totalPages ?>
+                  class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                  <?= $totalPages ?>
                 </a>
               <?php endif; ?>
 
               <!-- Next -->
               <?php if ($page < $totalPages): ?>
                 <a href="?page=<?= $page + 1 ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Next
+                  class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                  Next
                 </a>
               <?php else: ?>
                 <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Next
+                  Next
                 </span>
               <?php endif; ?>
             </nav>

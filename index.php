@@ -1,6 +1,6 @@
 <?php
-  include "database/database.php";
-  $database->login();
+include "database/database.php";
+$database->login();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -9,7 +9,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory System - Login</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/tailwind.min.css">
 </head>
 
 <body class="bg-gray-50 flex justify-center items-center min-h-screen">
@@ -42,7 +42,7 @@
       <h2 class="text-lg font-semibold text-gray-800">Login Account</h2>
       <p class="text-sm text-gray-500 mb-4">Enter your credentials to access the system</p>
       <?php
-      if(isset($_SESSION['login-error'])){
+      if (isset($_SESSION['login-error'])) {
         $error = htmlspecialchars($_SESSION['login-error']);
         echo "<p class='text-red-500 text-sm mt-3'>{$error}</p>";
         unset($_SESSION['login-error']);

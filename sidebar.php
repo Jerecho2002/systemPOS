@@ -2,6 +2,12 @@
 $currentPage = basename($_SERVER['PHP_SELF']);
 $userRole = $_SESSION['user-role'] ?? 'guest';
 $isAdmin = ($userRole === 'admin');
+
+$stockBadgeCount = 0;
+if (isset($database) && method_exists($database, 'getStockAlertCounts')) {
+    $stockStats = $database->getStockAlertCounts();
+    $stockBadgeCount = ($stockStats['out_of_stock'] ?? 0) + ($stockStats['low_stock'] ?? 0);
+}
 ?>
 
 <aside id="mobile-sidebar" class="bg-white w-64 space-y-4 flex flex-col h-screen fixed inset-y-0 left-0 
@@ -18,7 +24,6 @@ $isAdmin = ($userRole === 'admin');
     </div>
 
     <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-        <?php if ($isAdmin): ?>
         <a href="dashboard.php"
             class="flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out 
             <?php echo ($currentPage == 'dashboard.php') ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'; ?>">
@@ -29,7 +34,6 @@ $isAdmin = ($userRole === 'admin');
             </svg>
             <span>Dashboard</span>
         </a>
-        <?php endif; ?>
 
         <p class="text-xs uppercase text-gray-400 font-semibold mt-4 mb-1 pt-2 px-3">Point of Sale (POS)</p>
 
@@ -44,7 +48,6 @@ $isAdmin = ($userRole === 'admin');
             <span>Process Sales</span>
         </a>
 
-        <?php if ($isAdmin): ?>
         <a href="sales.php"
             class="flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out 
             <?php echo ($currentPage == 'sales.php') ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100'; ?>">
@@ -55,16 +58,15 @@ $isAdmin = ($userRole === 'admin');
             </svg>
             <span>Sales</span>
         </a>
-        <?php endif; ?>
 
         <!-- Inventory Management Dropdown -->
         <div x-data="{ open: <?php echo in_array($currentPage, [
-            'categories.php',
-            'item_catalog.php',
-            'stock_levels.php',
-            'purchase_orders.php',
-            'suppliers.php',
-        ]) ? 'true' : 'false'; ?> }" class="px-3">
+                                    'categories.php',
+                                    'item_catalog.php',
+                                    'stock_levels.php',
+                                    'purchase_orders.php',
+                                    'suppliers.php',
+                                ]) ? 'true' : 'false'; ?> }" class="px-3">
             <button @click="open = !open"
                 class="flex items-center justify-between w-full py-2 text-left text-gray-600 hover:bg-gray-100 rounded-lg transition duration-150 ease-in-out">
                 <span class="text-xs uppercase font-semibold text-gray-400">Inventory Management</span>
@@ -80,14 +82,13 @@ $isAdmin = ($userRole === 'admin');
                 // Define links based on role
                 if ($isAdmin) {
                     $links = [
-                        'categories.php' => 'Categories',
-                        'item_catalog.php' => 'Item Catalog',
-                        'stock_levels.php' => 'Stock Levels',
+                        'categories.php'      => 'Categories',
+                        'item_catalog.php'    => 'Item Catalog',
+                        'stock_levels.php'    => 'Stock Levels',
                         'purchase_orders.php' => 'Purchase Orders',
-                        'suppliers.php' => 'Suppliers',
+                        'suppliers.php'       => 'Suppliers',
                     ];
                 } else {
-                    // Staff only sees Item Catalog and Stock Levels
                     $links = [
                         'item_catalog.php' => 'Item Catalog',
                         'stock_levels.php' => 'Stock Levels',
@@ -96,12 +97,20 @@ $isAdmin = ($userRole === 'admin');
 
                 foreach ($links as $file => $label) {
                     $isActive = ($currentPage == $file) ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100';
+
+                    // Build badge only for Stock Levels
+                    $badge = '';
+                    if ($file === 'stock_levels.php' && $stockBadgeCount > 0) {
+                        $badge = "<span class='ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full'>{$stockBadgeCount}</span>";
+                    }
+
                     echo "
-                <a href='$file'
-                    class='flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out $isActive'>
-                    <span>$label</span>
-                </a>
-            ";
+        <a href='$file'
+            class='flex items-center px-3 py-2 rounded-lg transition duration-150 ease-in-out $isActive'>
+            <span>$label</span>
+            {$badge}
+        </a>
+    ";
                 }
                 ?>
             </div>
@@ -133,7 +142,7 @@ $isAdmin = ($userRole === 'admin');
                         'quotation.php' => 'Quotations'
                     ];
                 }
-                
+
                 foreach ($tools as $file => $label) {
                     $isActive = ($currentPage == $file) ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-600 hover:bg-gray-100';
                     echo "

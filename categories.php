@@ -1,6 +1,7 @@
 <?php
 include "database/database.php";
 $database->login_session();
+$database->admin_session();
 
 $database->create_category();
 $database->update_category();
@@ -22,7 +23,7 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS & Inventory - Categories</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/tailwind.min.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
     <style>
         .status-label {

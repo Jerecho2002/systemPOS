@@ -30,7 +30,7 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Product Catalog</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/tailwind.min.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
     /* Custom styles for icon placeholders */
@@ -230,11 +230,11 @@ $items = $database->select_items_paginated($offset, $perPage, $search, $category
                           data-id="<?= $item['item_id'] ?>"
                           data-name="<?= htmlspecialchars($item['item_name']) ?>"
                           title="Archive Item">
-                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd"
-                                d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                                clip-rule="evenodd" />
-                            </svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                              d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
+                              clip-rule="evenodd" />
+                          </svg>
                         </button>
                       </div>
                     </td>

@@ -29,27 +29,36 @@ class PDF extends FPDF
     private $tagline = "Your Trusted Computer Solutions Partner";
     private $contactInfo = "Email: sales@hpds.ph | Phone: (02) 123-4567 | Website: www.hpds.ph";
     private $address = "123 Tech Street, Makati City, Metro Manila";
+    private $isFirstPage = true; // Track first page
 
     function Header()
     {
+        if (!$this->isFirstPage) {
+            // Minimal header for subsequent pages
+            $this->SetFont('Arial', 'I', 8);
+            $this->SetTextColor(150, 150, 150);
+            $this->Cell(0, 5, 'Hanging Parrot Digital Solutions Quotation (continued)', 0, 1, 'R');
+            $this->Ln(3);
+            return;
+        }
+
         // Add logo if exists
         $logoPath = 'assets/images/HPDS-logo.png';
         if (file_exists($logoPath)) {
-            $this->Image($logoPath, 10, 8, 40); // Logo at top-left
+            $this->Image($logoPath, 10, 8, 40);
         }
 
         // Shop name and tagline
         $this->SetFont('Arial', 'B', 20);
-        $this->SetTextColor(0, 51, 102); // Dark blue
+        $this->SetTextColor(0, 51, 102);
         $this->SetXY(55, 10);
         $this->Cell(0, 8, $this->shopName, 0, 1);
 
         $this->SetFont('Arial', 'I', 10);
-        $this->SetTextColor(102, 102, 102); // Gray
+        $this->SetTextColor(102, 102, 102);
         $this->SetX(55);
         $this->Cell(0, 5, $this->tagline, 0, 1);
 
-        // Contact info
         $this->SetFont('Arial', '', 8);
         $this->SetTextColor(0, 0, 0);
         $this->SetX(55);
@@ -59,6 +68,14 @@ class PDF extends FPDF
         $this->Cell(0, 5, $this->address, 0, 1);
 
         $this->Ln(20);
+    }
+
+    function AddPage($orientation = '', $size = '', $rotation = 0)
+    {
+        if ($this->PageNo() > 0) {
+            $this->isFirstPage = false; // Mark as not first page before adding
+        }
+        parent::AddPage($orientation, $size, $rotation);
     }
 
     function Footer()

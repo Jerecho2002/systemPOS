@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 09, 2026 at 06:53 PM
+-- Generation Time: Feb 23, 2026 at 09:56 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -45,7 +45,7 @@ CREATE TABLE `categories` (
 
 INSERT INTO `categories` (`category_id`, `category_name`, `category_slug`, `category_type`, `category_description`, `created_at`, `updated_at`, `supports_quantity`, `is_deleted`) VALUES
 (10, 'CPU', 'cpu', 'pc_part', '', '2025-10-09 22:11:00', '2026-01-27 19:21:01', 0, 0),
-(11, 'GPU', 'gpu', 'pc_part', '', '2025-10-09 22:11:09', '2026-01-27 18:27:01', 0, 0),
+(11, 'GPU', 'gpu', 'pc_part', '', '2025-10-09 22:11:09', '2026-02-17 15:54:23', 0, 0),
 (12, 'RAM', 'ram', 'pc_part', '', '2025-10-09 22:11:17', '2026-01-27 20:18:41', 1, 0),
 (13, 'Motherboard', 'motherboard', 'pc_part', '', '2025-10-09 22:11:38', '2026-01-27 18:27:36', 0, 0),
 (14, 'Storage', 'storage', 'pc_part', '', '2025-10-09 22:11:54', '2026-01-27 19:21:25', 0, 0),
@@ -55,8 +55,7 @@ INSERT INTO `categories` (`category_id`, `category_name`, `category_slug`, `cate
 (21, 'Headset', 'headset', 'accessory', '', '2026-01-27 19:52:34', '2026-01-31 06:57:02', 1, 0),
 (22, 'Cable', 'cable', 'accessory', '', '2026-01-31 08:53:13', '2026-02-09 17:24:41', 1, 0),
 (23, 'CCTV', 'cctv', 'accessory', '', '2026-01-31 09:15:20', '2026-01-31 09:15:20', 1, 0),
-(24, 'RAM2', 'ram2', 'pc_part', 'AS', '2026-02-07 06:45:18', '2026-02-07 06:45:18', 1, 0),
-(25, 'asd', 'asd', 'pc_part', 'asdas', '2026-02-09 17:23:50', '2026-02-09 17:24:16', 1, 1);
+(24, 'RAM2', 'ram2', 'pc_part', '', '2026-02-07 06:45:18', '2026-02-09 18:03:25', 1, 0);
 
 -- --------------------------------------------------------
 
@@ -85,28 +84,28 @@ CREATE TABLE `items` (
 --
 
 INSERT INTO `items` (`item_id`, `barcode`, `item_name`, `description`, `category_id`, `supplier_id`, `cost_price`, `selling_price`, `quantity`, `min_stock`, `created_at`, `updated_at`, `is_deleted`) VALUES
-(1, '8806095114060', 'Intel Core i7-13700K', '13th Gen Desktop Processor, 16 Cores, up to 5.4 GHz', 10, 1, 18500.00, 22999.00, 12, 5, '2026-01-31 06:54:31', '2026-02-04 07:21:20', 0),
-(2, '4719331309038', 'ASUS ROG Strix Z790-E Gaming', 'LGA 1700 ATX Motherboard, WiFi 6E', 13, 2, 16750.00, 19999.00, 0, 3, '2026-01-31 06:54:31', '2026-02-09 17:40:27', 0),
-(3, '7406172930494', 'NVIDIA RTX 4070 Ti 12GB', 'GDDR6X, PCIe 4.0, DLSS 3', 11, 3, 45500.00, 52999.00, 4, 2, '2026-01-31 06:54:31', '2026-02-09 17:45:25', 0),
-(4, '8969832606721', 'Corsair Vengeance RGB 32GB', 'DDR5 6000MHz CL36 (2x16GB)', 12, 4, 6500.00, 8499.00, 33, 10, '2026-01-31 06:54:31', '2026-02-04 16:48:12', 0),
-(5, '5610494622186', 'Samsung 980 Pro 2TB NVMe SSD', 'PCIe 4.0, M.2, Read 7000MB/s', 14, 5, 8500.00, 10999.00, 13, 8, '2026-01-31 06:54:31', '2026-02-04 07:21:23', 0),
-(6, '3287460913547', 'Seagate Barracuda 4TB HDD', '7200 RPM, SATA 6Gb/s, 256MB Cache', 14, 6, 5200.00, 6999.00, 6, 5, '2026-01-31 06:54:31', '2026-02-04 07:21:06', 0),
+(1, '8806095114060', 'Intel Core i7-13700K', '13th Gen Desktop Processor, 16 Cores, up to 5.4 GHz', 10, 1, 18500.00, 22999.00, 10, 5, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
+(2, '4719331309038', 'ASUS ROG Strix Z790-E Gaming', 'LGA 1700 ATX Motherboard, WiFi 6E', 13, 2, 16750.00, 19999.00, 1, 3, '2026-01-31 06:54:31', '2026-02-23 20:32:37', 0),
+(3, '7406172930494', 'NVIDIA RTX 4070 Ti 12GB', 'GDDR6X, PCIe 4.0, DLSS 3', 11, 3, 45500.00, 52999.00, 1, 2, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
+(4, '8969832606721', 'Corsair Vengeance RGB 32GB', 'DDR5 6000MHz CL36 (2x16GB)', 12, 4, 6500.00, 8499.00, 29, 10, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
+(5, '5610494622186', 'Samsung 980 Pro 2TB NVMe SSD', 'PCIe 4.0, M.2, Read 7000MB/s', 14, 5, 8500.00, 10999.00, 9, 8, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
+(6, '3287460913547', 'Seagate Barracuda 4TB HDD', '7200 RPM, SATA 6Gb/s, 256MB Cache', 14, 6, 5200.00, 6999.00, 1, 5, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
 (7, '6940553418623', 'Corsair RM850x 80+ Gold', '850W Fully Modular PSU', 15, 4, 6500.00, 8499.00, 15, 4, '2026-01-31 06:54:31', '2026-01-31 09:18:06', 0),
 (8, '1752398046139', 'NZXT H7 Flow Black', 'Mid-Tower ATX Case, Tempered Glass', 16, 7, 5500.00, 7499.00, 9, 3, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
-(9, '9420175863042', 'Cooler Master Hyper 212', 'CPU Air Cooler, 4 Heat Pipes', 10, 8, 1800.00, 2499.00, 30, 15, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
+(9, '9420175863042', 'Cooler Master Hyper 212', 'CPU Air Cooler, 4 Heat Pipes', 10, 8, 1800.00, 2499.00, 29, 15, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
 (10, '4638291570641', 'Logitech G Pro X Superlight', 'Wireless Gaming Mouse, 25K DPI', 20, 9, 4500.00, 5999.00, 20, 8, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
-(11, '8192346507328', 'Razer BlackWidow V3', 'Mechanical Keyboard, Green Switches', 20, 10, 6200.00, 7999.00, 25, 6, '2026-01-31 06:54:31', '2026-02-04 16:48:12', 0),
+(11, '8192346507328', 'Razer BlackWidow V3', 'Mechanical Keyboard, Green Switches', 20, 10, 6200.00, 7999.00, 22, 6, '2026-01-31 06:54:31', '2026-02-09 19:51:02', 0),
 (12, '5073418962153', 'ASUS TUF Gaming VG27AQ', '27\" 1440p 165Hz IPS Monitor', 16, 2, 18500.00, 22999.00, 32, 3, '2026-01-31 06:54:31', '2026-02-09 17:41:54', 0),
-(13, '6829134507826', 'AMD Ryzen 9 7900X', '12-Core, 24-Threads, up to 5.6 GHz', 10, 11, 23500.00, 28999.00, 15, 2, '2026-01-31 06:54:31', '2026-02-09 17:38:23', 1),
+(13, '6829134507826', 'AMD Ryzen 9 7900X', '12-Core, 24-Threads, up to 5.6 GHz', 10, 11, 23500.00, 28999.00, 14, 2, '2026-01-31 06:54:31', '2026-02-17 15:52:30', 1),
 (14, '3948571026357', 'Gigabyte B650 AORUS Elite', 'AM5 Motherboard, DDR5, PCIe 5.0', 13, 12, 12500.00, 15999.00, 11, 5, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
 (15, '7264913085491', 'AMD Radeon RX 7800 XT 16GB', 'Navi 32, 64MB Infinity Cache', 11, 11, 36500.00, 44999.00, 16, 2, '2026-01-31 06:54:31', '2026-02-09 17:41:54', 0),
-(16, '1538792640357', 'Kingston Fury Beast 16GB', 'DDR4 3200MHz CL16 (2x8GB)', 12, 13, 3200.00, 4299.00, 45, 15, '2026-01-31 06:54:31', '2026-02-09 17:41:54', 0),
-(17, '8402635914872', 'WD Blue SN570 1TB NVMe SSD', 'PCIe 3.0, M.2, Read 3500MB/s', 14, 14, 3800.00, 4999.00, 22, 10, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
+(16, '1538792640357', 'Kingston Fury Beast 16GB', 'DDR4 3200MHz CL16 (2x8GB)', 12, 13, 3200.00, 4299.00, 44, 15, '2026-01-31 06:54:31', '2026-02-23 16:39:27', 0),
+(17, '8402635914872', 'WD Blue SN570 1TB NVMe SSD', 'PCIe 3.0, M.2, Read 3500MB/s', 14, 14, 3800.00, 4999.00, 20, 10, '2026-01-31 06:54:31', '2026-02-23 20:32:37', 0),
 (18, '5917264083592', 'MSI MAG A850GL 850W', '80+ Gold, Fully Modular, ATX 3.0', 15, 15, 5500.00, 7499.00, 8, 4, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
 (19, '3084926175439', 'Lian Li Lancool 216', 'Mid Tower, Mesh Front Panel', 16, 16, 4800.00, 6499.00, 13, 5, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
-(20, '9647312850367', 'Noctua NH-D15 Chromax', 'Dual Tower CPU Cooler, 2x140mm Fans', 10, 17, 6200.00, 7999.00, 6, 3, '2026-01-31 06:54:31', '2026-01-31 06:54:31', 0),
+(20, '9647312850367', 'Noctua NH-D15 Chromax', 'Dual Tower CPU Cooler, 2x140mm Fans', 10, 17, 6200.00, 7999.00, 3, 3, '2026-01-31 06:54:31', '2026-02-09 19:51:02', 0),
 (35, '7726281923', 'Cat-6 Indoor 20meters', 'Cable cat-6 indoor', 22, 14, 200.00, 500.00, 20, 5, '2026-01-31 08:58:43', '2026-02-04 16:33:30', 0),
-(36, '214453', 'Dahua Indoor', '', 23, 14, 300.00, 600.00, 2, 3, '2026-01-31 09:16:45', '2026-01-31 09:17:20', 0);
+(36, '214453', 'Dahua Indoor', '', 23, 14, 300.00, 600.00, 1, 3, '2026-01-31 09:16:45', '2026-02-09 19:51:02', 0);
 
 -- --------------------------------------------------------
 
@@ -135,7 +134,8 @@ INSERT INTO `item_stock_adjustment` (`item_stock_adjustment_id`, `item_id`, `pre
 (18, 15, 2, 4, 'Found', 1, '2026-02-06 15:57:58'),
 (19, 15, 4, 6, 'Found', 1, '2026-02-06 15:58:32'),
 (20, 2, 0, 1, 'asd', 1, '2026-02-09 17:40:21'),
-(21, 2, 1, 0, 'dsa', 1, '2026-02-09 17:40:27');
+(21, 2, 1, 0, 'dsa', 1, '2026-02-09 17:40:27'),
+(22, 2, 0, 3, 'Test\r\n', 2, '2026-02-23 20:31:21');
 
 -- --------------------------------------------------------
 
@@ -149,25 +149,31 @@ CREATE TABLE `pc_builders` (
   `user_id` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `status` varchar(20) NOT NULL DEFAULT 'active'
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `pc_builders`
 --
 
-INSERT INTO `pc_builders` (`pc_builder_id`, `pc_builder_name`, `user_id`, `created_at`, `updated_at`, `status`) VALUES
-(1, 'Gaming Beast Pro', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'completed'),
-(2, 'Budget Office PC', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'active'),
-(3, 'Streaming Workstation', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'active'),
-(4, 'Silent Editing Rig', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'pending'),
-(5, 'VR Ready System', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'completed'),
-(6, 'Student All-Rounder', 3, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'active'),
-(7, 'Esports Tournament PC', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'cancelled'),
-(8, 'Content Creation Machine', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'active'),
-(9, 'Home Server Build', 3, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'pending'),
-(10, '4K Gaming Monster', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 'completed'),
-(11, 'High End PC', 1, '2026-01-31 09:19:02', '2026-01-31 09:19:02', 'Pending');
+INSERT INTO `pc_builders` (`pc_builder_id`, `pc_builder_name`, `user_id`, `created_at`, `updated_at`, `is_deleted`) VALUES
+(1, 'Gaming Beast Pro', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(2, 'Budget Office PC', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(3, 'Streaming Workstation', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(4, 'Silent Editing Rig', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(5, 'VR Ready System', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(6, 'Student All-Rounder', 3, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(7, 'Esports Tournament PC', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(8, 'Content Creation Machine', 1, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(9, 'Home Server Build', 3, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(10, '4K Gaming Monster', 2, '2026-01-31 07:05:22', '2026-01-31 07:05:22', 0),
+(11, 'High End PC', 1, '2026-01-31 09:19:02', '2026-01-31 09:19:02', 0),
+(12, 'Hey', 5, '2026-02-09 18:19:18', '2026-02-09 18:19:18', 0),
+(13, 'Sample', 1, '2026-02-23 17:41:06', '2026-02-23 17:41:06', 0),
+(14, 'ASDASD', 1, '2026-02-23 17:45:43', '2026-02-23 17:45:43', 0),
+(15, 'gsd', 1, '2026-02-23 18:32:31', '2026-02-23 18:32:31', 0),
+(16, 'Jerecho Build', 1, '2026-02-23 19:16:57', '2026-02-23 19:16:57', 0),
+(17, 'hahaha', 1, '2026-02-23 19:42:26', '2026-02-23 19:42:26', 0);
 
 -- --------------------------------------------------------
 
@@ -234,7 +240,56 @@ INSERT INTO `pc_builder_items` (`pc_builder_item_id`, `pc_builder_id`, `category
 (43, 11, 20, 11, 1, '2026-01-31 09:19:02'),
 (44, 11, 15, 7, 1, '2026-01-31 09:19:02'),
 (45, 11, 12, 4, 1, '2026-01-31 09:19:02'),
-(46, 11, 14, 5, 1, '2026-01-31 09:19:02');
+(46, 11, 14, 5, 1, '2026-01-31 09:19:02'),
+(47, 12, 22, 35, 1, '2026-02-09 18:19:18'),
+(48, 12, 16, 8, 1, '2026-02-09 18:19:18'),
+(49, 12, 10, 13, 1, '2026-02-09 18:19:18'),
+(50, 12, 11, 15, 1, '2026-02-09 18:19:18'),
+(51, 12, 13, 14, 1, '2026-02-09 18:19:18'),
+(52, 12, 15, 7, 1, '2026-02-09 18:19:18'),
+(53, 12, 12, 16, 1, '2026-02-09 18:19:18'),
+(54, 12, 14, 5, 1, '2026-02-09 18:19:18'),
+(55, 13, 22, 35, 1, '2026-02-23 17:41:06'),
+(56, 13, 16, 8, 1, '2026-02-23 17:41:06'),
+(57, 13, 23, 36, 1, '2026-02-23 17:41:06'),
+(58, 13, 10, 1, 1, '2026-02-23 17:41:07'),
+(59, 13, 11, 15, 1, '2026-02-23 17:41:07'),
+(60, 13, 13, 2, 1, '2026-02-23 17:41:07'),
+(61, 13, 15, 7, 1, '2026-02-23 17:41:07'),
+(62, 13, 12, 16, 1, '2026-02-23 17:41:07'),
+(63, 13, 14, 5, 1, '2026-02-23 17:41:07'),
+(64, 14, 22, 35, 1, '2026-02-23 17:45:43'),
+(65, 14, 16, 8, 1, '2026-02-23 17:45:43'),
+(66, 14, 23, 36, 1, '2026-02-23 17:45:43'),
+(67, 14, 10, 9, 1, '2026-02-23 17:45:43'),
+(68, 14, 11, 15, 1, '2026-02-23 17:45:43'),
+(69, 14, 13, 2, 1, '2026-02-23 17:45:43'),
+(70, 14, 15, 7, 1, '2026-02-23 17:45:43'),
+(71, 14, 12, 16, 1, '2026-02-23 17:45:43'),
+(72, 14, 14, 5, 1, '2026-02-23 17:45:43'),
+(73, 15, 16, 8, 1, '2026-02-23 18:32:31'),
+(74, 15, 10, 9, 1, '2026-02-23 18:32:31'),
+(75, 15, 11, 15, 1, '2026-02-23 18:32:31'),
+(76, 15, 13, 2, 1, '2026-02-23 18:32:31'),
+(77, 15, 15, 18, 1, '2026-02-23 18:32:31'),
+(78, 15, 12, 16, 1, '2026-02-23 18:32:31'),
+(79, 15, 14, 6, 1, '2026-02-23 18:32:31'),
+(80, 16, 22, 35, 1, '2026-02-23 19:16:57'),
+(81, 16, 16, 8, 1, '2026-02-23 19:16:57'),
+(82, 16, 23, 36, 1, '2026-02-23 19:16:57'),
+(83, 16, 10, 1, 1, '2026-02-23 19:16:57'),
+(84, 16, 11, 3, 1, '2026-02-23 19:16:57'),
+(85, 16, 13, 2, 1, '2026-02-23 19:16:57'),
+(86, 16, 20, 10, 1, '2026-02-23 19:16:57'),
+(87, 16, 15, 7, 1, '2026-02-23 19:16:57'),
+(88, 16, 12, 4, 1, '2026-02-23 19:16:57'),
+(89, 16, 14, 5, 1, '2026-02-23 19:16:57'),
+(90, 17, 16, 8, 1, '2026-02-23 19:42:26'),
+(91, 17, 10, 1, 1, '2026-02-23 19:42:26'),
+(92, 17, 11, 3, 1, '2026-02-23 19:42:26'),
+(93, 17, 13, 2, 1, '2026-02-23 19:42:26'),
+(94, 17, 15, 7, 1, '2026-02-23 19:42:26'),
+(95, 17, 12, 4, 1, '2026-02-23 19:42:26');
 
 -- --------------------------------------------------------
 
@@ -336,7 +391,11 @@ INSERT INTO `sales` (`sale_id`, `transaction_id`, `customer_name`, `grand_total`
 (90, 'TXN-2602-3713', 'walk in', 10999.00, 10999.00, 0.00, 'Cash', '2026-02-04 15:21:15', 1, 0),
 (91, 'TXN-2602-6163', 'walk in', 22999.00, 22999.00, 0.00, 'Cash', '2026-02-04 15:21:20', 1, 0),
 (92, 'TXN-2602-7489', 'walk in', 10999.00, 10999.00, 0.00, 'Cash', '2026-02-04 15:21:23', 1, 0),
-(93, 'TXN-2602-4815', 'Jerecho', 52999.00, 52999.00, 0.00, 'Cash', '2026-02-10 01:45:25', 1, 0);
+(93, 'TXN-2602-4815', 'Jerecho', 52999.00, 52999.00, 0.00, 'Cash', '2026-02-10 01:45:25', 1, 0),
+(94, 'TXN-2602-2257', 'walk in', 211082.00, 211082.00, 0.00, 'Cash', '2026-02-10 03:51:02', 1, 0),
+(95, 'TXN-2602-2799', 'walk in', 81998.00, 81998.00, 0.00, 'Cash', '2026-02-17 23:52:30', 1, 0),
+(96, 'TXN-2602-5561', 'walk in', 114292.00, 114292.00, 0.00, 'Cash', '2026-02-24 00:39:27', 1, 0),
+(97, 'TXN-2602-3688', 'Jerecho', 44997.00, 44997.00, 0.00, 'Credit Card', '2026-02-24 04:32:37', 2, 0);
 
 -- --------------------------------------------------------
 
@@ -375,7 +434,27 @@ INSERT INTO `sale_items` (`sale_item_id`, `sale_id`, `item_id`, `quantity`, `uni
 (79, 90, 5, 1, 10999.00, 10999.00, '2026-02-04 07:21:15'),
 (80, 91, 1, 1, 22999.00, 22999.00, '2026-02-04 07:21:20'),
 (81, 92, 5, 1, 10999.00, 10999.00, '2026-02-04 07:21:23'),
-(82, 93, 3, 1, 52999.00, 52999.00, '2026-02-09 17:45:25');
+(82, 93, 3, 1, 52999.00, 52999.00, '2026-02-09 17:45:25'),
+(83, 94, 3, 1, 52999.00, 52999.00, '2026-02-09 19:51:02'),
+(84, 94, 1, 1, 22999.00, 22999.00, '2026-02-09 19:51:02'),
+(85, 94, 6, 4, 6999.00, 27996.00, '2026-02-09 19:51:02'),
+(86, 94, 5, 3, 10999.00, 32997.00, '2026-02-09 19:51:02'),
+(87, 94, 4, 3, 8499.00, 25497.00, '2026-02-09 19:51:02'),
+(88, 94, 11, 3, 7999.00, 23997.00, '2026-02-09 19:51:02'),
+(89, 94, 20, 3, 7999.00, 23997.00, '2026-02-09 19:51:02'),
+(90, 94, 36, 1, 600.00, 600.00, '2026-02-09 19:51:02'),
+(91, 95, 13, 1, 28999.00, 28999.00, '2026-02-17 15:52:30'),
+(92, 95, 3, 1, 52999.00, 52999.00, '2026-02-17 15:52:30'),
+(93, 96, 1, 1, 22999.00, 22999.00, '2026-02-23 16:39:27'),
+(94, 96, 3, 1, 52999.00, 52999.00, '2026-02-23 16:39:27'),
+(95, 96, 6, 1, 6999.00, 6999.00, '2026-02-23 16:39:27'),
+(96, 96, 5, 1, 10999.00, 10999.00, '2026-02-23 16:39:27'),
+(97, 96, 4, 1, 8499.00, 8499.00, '2026-02-23 16:39:27'),
+(98, 96, 9, 1, 2499.00, 2499.00, '2026-02-23 16:39:27'),
+(99, 96, 17, 1, 4999.00, 4999.00, '2026-02-23 16:39:27'),
+(100, 96, 16, 1, 4299.00, 4299.00, '2026-02-23 16:39:27'),
+(101, 97, 17, 1, 4999.00, 4999.00, '2026-02-23 20:32:37'),
+(102, 97, 2, 2, 19999.00, 39998.00, '2026-02-23 20:32:37');
 
 -- --------------------------------------------------------
 
@@ -430,7 +509,7 @@ CREATE TABLE `suppliers` (
 
 INSERT INTO `suppliers` (`supplier_id`, `supplier_name`, `contact_number`, `email`, `status`, `is_deleted`) VALUES
 (1, 'Intel Philippines', '+639171234567', 'ph.sales@intel.com', 1, 0),
-(2, 'ASUS Philippines', '+639172345678', 'ph.sales@asus.com', 1, 1),
+(2, 'ASUS Philippines', '+639172345678', 'ph.sales@asus.com', 1, 0),
 (3, 'NVIDIA Philippines', '+639173456789', 'ph.sales@nvidia.com', 1, 0),
 (4, 'Corsair Philippines', '+639174567890', 'ph.sales@corsair.com', 1, 0),
 (5, 'Samsung Philippines', '+639175678901', 'ph.sales@samsung.com', 1, 0),
@@ -439,14 +518,13 @@ INSERT INTO `suppliers` (`supplier_id`, `supplier_name`, `contact_number`, `emai
 (8, 'Cooler Master PH', '+639178901234', 'ph.sales@coolermaster.com', 1, 0),
 (9, 'Logitech Philippines', '+639179012345', 'ph.sales@logitech.com', 1, 0),
 (10, 'Razer Philippines', '+639180123456', 'ph.sales@razer.com', 1, 0),
-(11, 'AMD Philippines', '+639181234567', 'ph.sales@amd.com', 1, 1),
-(12, 'Gigabyte Philippines', '+639182345678', 'ph.sales@gigabyte.com', 1, 1),
+(11, 'AMD Philippines', '+639181234567', 'ph.sales@amd.com', 1, 0),
+(12, 'Gigabyte Philippines', '+639182345678', 'ph.sales@gigabyte.com', 1, 0),
 (13, 'Kingston Philippines', '+639183456789', 'ph.sales@kingston.com', 1, 0),
 (14, 'WD Philippines', '+639184567890', 'ph.sales@wdc.com', 1, 0),
 (15, 'MSI Philippines', '+639185678901', 'ph.sales@msi.com', 1, 0),
 (16, 'Lian Li Philippines', '+639186789012', 'ph.sales@lian-li.com', 1, 0),
-(17, 'Noctua Philippines', '+639187890123', 'ph.sales@noctua.at', 1, 0),
-(18, 'Random ', '09934936769', 'jerecholatosa2002@gmail.com', 1, 1);
+(17, 'Noctua Philippines', '+639187890123', 'ph.sales@noctua.at', 1, 0);
 
 -- --------------------------------------------------------
 
@@ -467,10 +545,11 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `username`, `password`, `role`, `is_active`) VALUES
-(1, 'Jerecho', '$2y$10$3U6KZ6tHo1zk3FXS3DRunejRBf3/WlXYNPjsZmFIeLxFMmTu4xEtW', 'staff', 1),
+(1, 'Jerecho', '$2y$10$3U6KZ6tHo1zk3FXS3DRunejRBf3/WlXYNPjsZmFIeLxFMmTu4xEtW', 'admin', 1),
 (2, 'Admin', '$2y$10$4tpLaZJ74qvfT.zkmEGHYuhT5q3B7rYRj0ZszObqvLUVeOK4tllvS', 'staff', 1),
 (3, 'Staff', '$2y$10$AAoF1JxX8.N.wLGsPEJ2guN7sfbNCu4XaiM/8FCXMSUSxT27mEQbe', 'staff', 1),
-(4, 'sample', '$2y$10$2pUChB75nRl7X9QJ7y2TBubBIfy3598CROurW.dumlVw25JEpcZBC', 'staff', 1);
+(4, 'sample', '$2y$10$2pUChB75nRl7X9QJ7y2TBubBIfy3598CROurW.dumlVw25JEpcZBC', 'staff', 1),
+(5, 'echo', '$2y$10$VCZA/LV2nog82wFJiTFlruO14iT3gjHFCV9F7Hyes5CLDb8WZ/JgG', 'staff', 1);
 
 --
 -- Indexes for dumped tables
@@ -584,7 +663,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `items`
@@ -596,19 +675,19 @@ ALTER TABLE `items`
 -- AUTO_INCREMENT for table `item_stock_adjustment`
 --
 ALTER TABLE `item_stock_adjustment`
-  MODIFY `item_stock_adjustment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `item_stock_adjustment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `pc_builders`
 --
 ALTER TABLE `pc_builders`
-  MODIFY `pc_builder_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `pc_builder_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `pc_builder_items`
 --
 ALTER TABLE `pc_builder_items`
-  MODIFY `pc_builder_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `pc_builder_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=96;
 
 --
 -- AUTO_INCREMENT for table `purchase_orders`
@@ -626,13 +705,13 @@ ALTER TABLE `purchase_order_items`
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `sale_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
+  MODIFY `sale_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=98;
 
 --
 -- AUTO_INCREMENT for table `sale_items`
 --
 ALTER TABLE `sale_items`
-  MODIFY `sale_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=83;
+  MODIFY `sale_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=103;
 
 --
 -- AUTO_INCREMENT for table `sale_pc_builders`
@@ -650,13 +729,13 @@ ALTER TABLE `sale_pc_builder_items`
 -- AUTO_INCREMENT for table `suppliers`
 --
 ALTER TABLE `suppliers`
-  MODIFY `supplier_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `supplier_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables

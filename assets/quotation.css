@@ -1,0 +1,470 @@
+#pcBuilderModal * {
+  font-family: "DM Sans", sans-serif;
+  box-sizing: border-box;
+}
+
+/* ── Overlay ── */
+#pcBuilderModal {
+  backdrop-filter: blur(6px);
+}
+
+/* ── Shell ── */
+.qm-shell {
+  background: #f8f9fc;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 90%;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.qm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: #1e293b;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.qm-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qm-header-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qm-header-icon svg {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+}
+
+.qm-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.qm-header p {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.qm-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.qm-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ── Two-column body ── */
+.qm-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* LEFT — form */
+.qm-left {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* Build name card */
+.qm-name-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.qm-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #64748b;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.qm-name-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  background: #f8fafc;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  outline: none;
+}
+
+.qm-name-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  background: #fff;
+}
+
+/* Section headers */
+.qm-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+}
+
+.qm-section-label .pill {
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+}
+
+.pill-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.pill-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.qm-section-line {
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+/* Component grid */
+.qm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+/* Component card */
+.qm-comp-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.qm-comp-card:has(select:focus),
+.qm-comp-card.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.qm-comp-card.accessory-card:has(select:focus),
+.qm-comp-card.accessory-card.selected {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+}
+
+.qm-comp-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qm-comp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.selected .qm-comp-dot {
+  background: #3b82f6;
+}
+
+.accessory-card.selected .qm-comp-dot {
+  background: #22c55e;
+}
+
+.qm-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #334155;
+  background: #f8fafc;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.qm-select:focus {
+  border-color: #3b82f6;
+  background-color: #fff;
+}
+
+.qm-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.qm-qty-label {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.qm-qty-input {
+  width: 56px;
+  padding: 5px 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  font-family: "DM Mono", monospace;
+  outline: none;
+  text-align: center;
+  background: #f8fafc;
+}
+
+.qm-qty-input:focus {
+  border-color: #3b82f6;
+  background: #fff;
+}
+
+/* RIGHT — summary panel */
+.qm-right {
+  max-width: 100%;
+  width: 30%;
+  flex-shrink: 0;
+  background: #1e293b;
+  color: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qm-summary-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #64748b;
+}
+
+.qm-summary-name {
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.qm-summary-name .slabel {
+  font-size: 10px;
+  color: #475569;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qm-summary-name .sval {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.qm-summary-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.qm-sitem {
+  padding: 7px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+
+.qm-sitem.filled {
+  opacity: 1;
+}
+
+.qm-sitem .si-cat {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.qm-sitem .si-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: #cbd5e1;
+  line-height: 1.3;
+}
+
+.qm-sitem .si-price {
+  font-size: 11px;
+  color: #38bdf8;
+  font-family: "DM Mono", monospace;
+  font-weight: 500;
+}
+
+.qm-total-block {
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #1d4ed8, #4f46e5);
+  flex-shrink: 0;
+}
+
+.qm-total-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 4px;
+}
+
+.qm-total-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  font-family: "DM Mono", monospace;
+  letter-spacing: -0.5px;
+}
+
+.qm-item-count {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 3px;
+}
+
+/* ── Footer ── */
+.qm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #fff;
+  border-top: 1.5px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.qm-btn {
+  padding: 9px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  outline: none;
+}
+
+.qm-btn-cancel {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1.5px solid #e2e8f0;
+}
+
+.qm-btn-cancel:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.qm-btn-save {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+.qm-btn-save:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+}
+
+.qm-btn-save:active {
+  transform: translateY(0);
+}
+
+/* Progress bar */
+.qm-progress-wrap {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.qm-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  width: 0%;
+  transition: width 0.4s ease;
+}

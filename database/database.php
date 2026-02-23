@@ -34,7 +34,20 @@ class Database
     public function login_session()
     {
         if (!isset($_SESSION['login-success'])) {
-            header("Location: index .php");
+            header("Location: index.php");
+        }
+    }
+
+    public function admin_session()
+    {
+        if (!isset($_SESSION['login-success'])) {
+            header("Location: index.php");
+            exit;
+        }
+
+        if ($_SESSION['user-role'] !== 'admin') {
+            header("Location: dashboard.php");
+            exit;
         }
     }
 
@@ -2120,8 +2133,8 @@ class Database
             $pdo->beginTransaction();
 
             $stmt = $pdo->prepare("
-            INSERT INTO pc_builders (pc_builder_name, user_id, status, created_at)
-            VALUES (?, ?, 'Pending', ?)
+            INSERT INTO pc_builders (pc_builder_name, user_id, created_at)
+            VALUES (?, ?, ?)
         ");
             $stmt->execute([$pc_builder_name, $user_id, $createdAt]);
 
@@ -2258,7 +2271,6 @@ class Database
         SELECT 
             pb.pc_builder_id,
             pb.pc_builder_name,
-            pb.status,
             pb.created_at,
             pb.user_id,
             u.username
@@ -2392,6 +2404,61 @@ class Database
         WHERE pb.pc_builder_id = ?
     ");
         $stmt->execute([$pc_builder_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function getPcBuildersCount($search = '')
+    {
+        $sql = "SELECT COUNT(*) FROM pc_builders WHERE 1=1";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND pc_builder_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function getPcBuildersPaginated($search = '', $offset = 0, $limit = 5)
+    {
+        $sql = "SELECT pb.*, u.username AS created_by
+            FROM pc_builders pb
+            LEFT JOIN users u ON u.user_id = pb.user_id
+            WHERE 1=1";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND pb.pc_builder_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " ORDER BY pb.created_at DESC LIMIT :offset, :limit";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getStockAlertCounts()
+    {
+        $stmt = $this->conn->prepare("
+        SELECT 
+            SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) AS out_of_stock,
+            SUM(CASE WHEN quantity > 0 AND quantity <= min_stock THEN 1 ELSE 0 END) AS low_stock
+        FROM items
+        WHERE is_deleted = 0
+    ");
+        $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }

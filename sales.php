@@ -21,10 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_sale'])) {
     exit;
 }
 
-$perPage = 5;
 $search  = trim($_GET['search'] ?? '');
 $page    = max(1, (int) ($_GET['page'] ?? 1));
-
+$perPage = 5;
 $offset = ($page - 1) * $perPage;
 
 $totalSales = $database->getTotalSalesCount($search);
@@ -40,7 +39,9 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POS & Inventory - Recent Transactions</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="assets/print.min.js"></script>
+    <link rel="stylesheet" href="assets/tailwind.min.css">
+    <link rel="stylesheet" href="assets/print.min.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 
@@ -100,11 +101,11 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Amount</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Payment</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Date</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
@@ -113,27 +114,32 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
                             <?php foreach ($sales as $sale): ?>
                                 <tr class="hover:bg-gray-50">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= $sale['transaction_id'] ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?= htmlspecialchars($sale['customer_name'] ?: '—') ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱<?= number_format($sale['grand_total'], 2) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?= htmlspecialchars($sale['payment_method'] ?: '—') ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?= date('g:i A', strtotime($sale['time'])) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600"><?= date('M j, Y', strtotime($sale['date'])) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                        <button class="text-red-500 hover:text-red-700 openArchiveSaleModal"
-                                            data-id="<?= $sale['sale_id'] ?>"
-                                            data-name="<?= $sale['transaction_id'] ?>"
-                                            title="Archive Transaction">
-                                            <!-- Archive icon -->
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd"
-                                                    d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                                                    clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                        <button class="preview-sale-btn inline-flex items-center justify-center p-1 hover:opacity-80 transition-opacity text-red-600"
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell"><?= htmlspecialchars($sale['customer_name'] ?: '—') ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">₱<?= number_format($sale['grand_total'], 2) ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell"><?= htmlspecialchars($sale['payment_method'] ?: '—') ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell"><?= date('g:i A', strtotime($sale['time'])) ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell"><?= date('M j, Y', strtotime($sale['date'])) ?></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm flex items-center gap-2">
+                                        <?php if ($isAdmin): ?>
+                                            <button class="text-red-500 hover:text-red-700 openArchiveSaleModal"
+                                                data-id="<?= $sale['sale_id'] ?>"
+                                                data-name="<?= $sale['transaction_id'] ?>"
+                                                title="Archive Transaction">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd"
+                                                        d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        <?php endif; ?>
+                                        <button class="preview-sale-btn inline-flex items-center justify-center p-1 hover:opacity-80 transition-opacity text-green-600"
                                             data-id="<?= $sale['sale_id'] ?>"
                                             title="Generate Receipt">
-                                            <?php include 'assets/images/pdf-icon.php'; ?>
+                                            <svg xmlns="http://www.w3.org/2000/svg"
+                                                class="w-5 h-5 fill-current"
+                                                viewBox="0 0 24 24">
+                                                <path d="M6 9V3h12v6h1a3 3 0 013 3v5a3 3 0 01-3 3h-1v4H6v-4H5a3 3 0 01-3-3v-5a3 3 0 013-3h1zm2-4v4h8V5H8zm8 13H8v3h8v-3z" />
+                                            </svg>
                                         </button>
                                     </td>
                                 </tr>
@@ -347,6 +353,9 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
         document.addEventListener('DOMContentLoaded', () => {
             const previewButtons = document.querySelectorAll('.preview-sale-btn');
 
+            // Detect mobile device
+            const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+
             previewButtons.forEach(button => {
                 button.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -358,14 +367,38 @@ $sales = $database->select_sales_paginated($offset, $perPage, $search);
                         return;
                     }
 
-                    // Open sales receipt PDF
-                    window.open(`preview_sales_receipt_pdf.php?id=${saleId}`, '_blank');
+                    if (isMobile) {
+                        // On mobile, just open the PDF directly in a new tab
+                        window.open(`print_sales_receipt.php?id=${saleId}`, '_blank');
+                        return;
+                    }
+
+                    // Desktop: use Print.js
+                    fetch(`print_sales_receipt.php?id=${saleId}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Failed to fetch receipt');
+                            return response.blob();
+                        })
+                        .then(blob => {
+                            const reader = new FileReader();
+                            reader.onloadend = function() {
+                                const base64 = reader.result.split(',')[1];
+                                printJS({
+                                    printable: base64,
+                                    type: 'pdf',
+                                    base64: true
+                                });
+                            };
+                            reader.readAsDataURL(blob);
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            alert('Could not load receipt. Please try again.');
+                        });
                 });
             });
         });
     </script>
-
-
 </body>
 
 </html>

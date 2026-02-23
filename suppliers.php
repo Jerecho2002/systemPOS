@@ -1,6 +1,7 @@
 <?php
 include "database/database.php";
 $database->login_session();
+$database->admin_session();
 $database->create_supplier();
 $database->update_supplier();
 $database->archive_supplier();
@@ -42,7 +43,7 @@ function formatCompactCurrency($number)
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Suppliers</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/tailwind.min.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
     .status-label {
@@ -114,22 +115,22 @@ function formatCompactCurrency($number)
         <div class="bg-white border rounded-xl p-6">
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 gap-3">
             <form method="GET" action="" class="relative flex-1 max-w-md">
-              <input 
-                type="text" 
-                name="search" 
-                id="searchInput" 
+              <input
+                type="text"
+                name="search"
+                id="searchInput"
                 value="<?= htmlspecialchars($search) ?>"
                 placeholder="Search suppliers by name..."
                 class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
-              
+
               <?php if ($search !== ''): ?>
                 <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   <span class="material-icons text-sm">close</span>
                 </a>
               <?php endif; ?>
             </form>
-            
+
             <button id="openAddSupplierModal"
               class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
               + Add Supplier
@@ -233,7 +234,7 @@ function formatCompactCurrency($number)
                                 clip-rule="evenodd" />
                             </svg>
                           </button>
-                           <button class="text-red-500 hover:text-red-700 openArchiveSupplierModal"
+                          <button class="text-red-500 hover:text-red-700 openArchiveSupplierModal"
                             data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
                             title="Archive Supplier">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -272,12 +273,12 @@ function formatCompactCurrency($number)
                 <!-- Previous -->
                 <?php if ($page > 1): ?>
                   <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                      Previous
+                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                    Previous
                   </a>
                 <?php else: ?>
                   <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                      Previous
+                    Previous
                   </span>
                 <?php endif; ?>
 
@@ -289,8 +290,8 @@ function formatCompactCurrency($number)
                 // Show first page and ellipsis if needed
                 if ($start > 1): ?>
                   <a href="?page=1<?= $searchParam ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                      1
+                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                    1
                   </a>
                   <?php if ($start > 2): ?>
                     <span class="px-3 py-2 text-sm text-gray-500">...</span>
@@ -302,12 +303,12 @@ function formatCompactCurrency($number)
                 for ($i = $start; $i <= $end; $i++):
                   if ($i === $page): ?>
                     <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                        <?= $i ?>
+                      <?= $i ?>
                     </span>
                   <?php else: ?>
                     <a href="?page=<?= $i ?><?= $searchParam ?>"
-                        class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                        <?= $i ?>
+                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                      <?= $i ?>
                     </a>
                   <?php endif; ?>
                 <?php endfor; ?>
@@ -319,20 +320,20 @@ function formatCompactCurrency($number)
                     <span class="px-3 py-2 text-sm text-gray-500">...</span>
                   <?php endif; ?>
                   <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                      <?= $totalPages ?>
+                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
+                    <?= $totalPages ?>
                   </a>
                 <?php endif; ?>
 
                 <!-- Next -->
                 <?php if ($page < $totalPages): ?>
                   <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                      Next
+                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
+                    Next
                   </a>
                 <?php else: ?>
                   <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                      Next
+                    Next
                   </span>
                 <?php endif; ?>
               </nav>

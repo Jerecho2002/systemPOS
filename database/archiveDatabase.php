@@ -210,6 +210,19 @@ class Database
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function getStockAlertCounts()
+    {
+        $stmt = $this->conn->prepare("
+        SELECT 
+            SUM(CASE WHEN quantity = 0 THEN 1 ELSE 0 END) AS out_of_stock,
+            SUM(CASE WHEN quantity > 0 AND quantity <= min_stock THEN 1 ELSE 0 END) AS low_stock
+        FROM items
+        WHERE is_deleted = 0
+    ");
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }
 
 $database = new Database();
