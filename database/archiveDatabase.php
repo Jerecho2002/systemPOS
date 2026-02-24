@@ -38,6 +38,19 @@ class Database
         }
     }
 
+    public function admin_session()
+    {
+        if (!isset($_SESSION['login-success'])) {
+            header("Location: index.php");
+            exit;
+        }
+
+        if ($_SESSION['user-role'] !== 'admin') {
+            header("Location: dashboard.php");
+            exit;
+        }
+    }
+
     private array $archiveTables = [
         'categories' => [
             'table' => 'categories',

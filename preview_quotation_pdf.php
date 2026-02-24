@@ -27,8 +27,8 @@ class PDF extends FPDF
 {
     private $shopName = "Hanging Parrot Digital Solutions";
     private $tagline = "Your Trusted Computer Solutions Partner";
-    private $contactInfo = "Email: sales@hpds.ph | Phone: (02) 123-4567 | Website: www.hpds.ph";
-    private $address = "123 Tech Street, Makati City, Metro Manila";
+    private $contactInfo = "(032) 479-8933 / 0919-95555666";
+    private $address = "Ground Floor, ESC Building Corner Sanciangko and Janquera St., Cebu City";
     private $isFirstPage = true; // Track first page
 
     function Header()

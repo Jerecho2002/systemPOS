@@ -47,10 +47,10 @@ class ReceiptPDF extends FPDF
 
         // Store Details
         $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "123 Tech Street, Makati City", 0, 1, 'C');
-        $this->Cell($this->w, 3, "Metro Manila, Philippines", 0, 1, 'C');
-        $this->Cell($this->w, 3, "Tel: (02) 123-4567", 0, 1, 'C');
-        $this->Cell($this->w, 3, "Email: sales@hpds.ph", 0, 1, 'C');
+        $this->Cell($this->w, 3, "Ground Floor, ESC Building", 0, 1, 'C');
+        $this->Cell($this->w, 3, "Corner Sanciangko ", 0, 1, 'C');
+        $this->Cell($this->w, 3, "and Janquera St., Cebu City", 0, 1, 'C');
+        $this->Cell($this->w, 3, "(032) 479-8933 / 0919-95555666", 0, 1, 'C');
         $this->Ln(2);
 
         // Separator - dashed line like thermal printers
