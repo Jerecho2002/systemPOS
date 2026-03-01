@@ -25,15 +25,10 @@ $inactive_count = count(array_filter($allSuppliers, fn($sp) => $sp['status'] == 
 
 function formatCompactCurrency($number)
 {
-  if ($number >= 1_000_000_000) {
-    return '₱' . round($number / 1_000_000_000, 1) . 'B';
-  } elseif ($number >= 1_000_000) {
-    return '₱' . round($number / 1_000_000, 1) . 'M';
-  } elseif ($number >= 1_000) {
-    return '₱' . round($number / 1_000, 1) . 'k';
-  } else {
-    return '₱' . number_format($number, 0);
-  }
+  if ($number >= 1_000_000_000) return '₱' . round($number / 1_000_000_000, 1) . 'B';
+  if ($number >= 1_000_000)     return '₱' . round($number / 1_000_000, 1) . 'M';
+  if ($number >= 1_000)         return '₱' . round($number / 1_000, 1) . 'k';
+  return '₱' . number_format($number, 0);
 }
 ?>
 <!DOCTYPE html>
@@ -44,745 +39,898 @@ function formatCompactCurrency($number)
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Suppliers</title>
   <link rel="stylesheet" href="assets/tailwind.min.css">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="assets/fonts.css" rel="stylesheet">
+
   <style>
-    .status-label {
-      padding: 2px 8px;
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #f5a623;
+      --text: #e8eaf0;
+      --text-muted: #7b82a0;
+      --success: #43d392;
+      --danger: #ff5c5c;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    main {
+      flex: 1;
+      padding: 24px;
+      transition: margin-left .3s ease;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, .2);
+    }
+
+    .stat-card h4 {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 4px 0 2px;
+    }
+
+    .stat-card p:first-child {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .stat-card p:last-child {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s;
+      white-space: nowrap;
+    }
+
+    .btn-primary:hover {
+      opacity: .88;
+    }
+
+    .search-wrap {
+      position: relative;
+      min-width: 260px;
+      flex: 1 1 260px;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 36px 9px 38px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(245, 166, 35, .1);
+    }
+
+    .search-wrap input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1;
+      text-decoration: none;
+      transition: color .2s;
+    }
+
+    .search-clear:hover {
+      color: var(--danger);
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-success {
+      background: rgba(67, 211, 146, .1);
+      border: 1px solid rgba(67, 211, 146, .3);
+      color: var(--success);
+    }
+
+    .alert-error {
+      background: rgba(255, 92, 92, .1);
+      border: 1px solid rgba(255, 92, 92, .3);
+      color: var(--danger);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table thead tr {
+      border-bottom: 1.5px solid var(--border);
+    }
+
+    .data-table thead th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .data-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .data-table tbody td {
+      padding: 13px 16px;
+    }
+
+    .status-pill {
+      padding: 3px 10px;
       font-size: 12px;
       font-weight: 600;
-      border-radius: 9999px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .status-active {
+      background: rgba(67, 211, 146, .18);
+      color: var(--success);
+    }
+
+    .status-inactive {
+      background: rgba(255, 92, 92, .18);
+      color: var(--danger);
+    }
+
+    .btn-action {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      color: var(--text-muted);
+      transition: all .15s;
+    }
+
+    .btn-action:hover.view {
+      color: #60a5fa;
+      background: rgba(96, 165, 250, .12);
+    }
+
+    .btn-action:hover.edit {
+      color: var(--success);
+      background: rgba(67, 211, 146, .12);
+    }
+
+    .btn-action:hover.archive {
+      color: var(--danger);
+      background: rgba(255, 92, 92, .12);
+    }
+
+    .actions-wrap {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      flex-wrap: nowrap;
+      min-width: 110px;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      text-decoration: none;
+      transition: all .2s;
+    }
+
+    .page-btn:hover {
+      border-color: var(--accent);
+      background: rgba(245, 166, 35, .08);
+      color: var(--accent);
+    }
+
+    .page-btn.active {
+      background: var(--accent);
+      color: #111;
+      border-color: var(--accent);
+    }
+
+    .page-btn.disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .recent-list,
+    .top-list {
+      margin-top: 12px;
+    }
+
+    .recent-item,
+    .top-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .recent-item:last-child,
+    .top-item:last-child {
+      border-bottom: none;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal-box {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      width: 480px;
+      max-width: 92%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, .4);
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+
+    .form-input,
+    .form-select {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-cancel {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover {
+      color: var(--text);
+      border-color: #555;
+    }
+
+    .btn-confirm-ok {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-confirm-ok:hover {
+      opacity: .88;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 5px;
     }
   </style>
 </head>
 
-<body class="bg-gray-50 flex">
+<body>
 
-  <!-- Mobile Sidebar Toggle Button -->
-  <button id="sidebar-toggle" class="md:hidden p-3 fixed top-4 left-4 z-60 text-white rounded shadow-lg"
-    style="background-color: rgba(170, 170, 170, 0.82);">
-    ☰
-  </button>
-
+  <button class="mobile-toggle" id="sidebar-toggle">☰</button>
   <?php include "sidebar.php"; ?>
 
-  <!-- Main Content -->
-  <main class="flex-1 ml-0 md:ml-64 p-6">
-    <header class="mb-6">
-      <h2 class="text-2xl font-bold text-gray-800">Inventory Suppliers</h2>
-    </header>
+  <main style="margin-left:240px;">
 
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-xl font-bold text-gray-800">Supplier Management</h3>
-          <p class="text-sm text-gray-500">Manage your supplier relationships and procurement</p>
+    <div class="card">
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <p>Total Suppliers</p>
+          <h4><?= count($allSuppliers) ?></h4>
+          <p>registered</p>
+        </div>
+        <div class="stat-card">
+          <p>Total Spent</p>
+          <h4><?= formatCompactCurrency($grandTotal) ?></h4>
+          <p>all time purchases</p>
+        </div>
+        <div class="stat-card">
+          <p>Active</p>
+          <h4 style="color:var(--success);"><?= $active_count ?></h4>
+          <p>currently active</p>
+        </div>
+        <div class="stat-card">
+          <p>Inactive</p>
+          <h4 style="color:var(--danger);"><?= $inactive_count ?></h4>
+          <p>currently inactive</p>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Total Suppliers</p>
-            <h4 class="text-2xl font-bold"><?= count($allSuppliers) ?></h4>
-            <p class="text-xs text-gray-500">registered suppliers</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Total Spent</p>
-            <h4 class="text-2xl font-bold"><?= formatCompactCurrency($grandTotal) ?></h4>
-            <p class="text-xs text-gray-500">all time purchases</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Active Suppliers</p>
-            <h4 class="text-2xl font-bold"><?= $active_count ?></h4>
-            <p class="text-xs text-gray-500">currently active</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Inactive Suppliers</p>
-            <h4 class="text-2xl font-bold"><?= $inactive_count ?></h4>
-            <p class="text-xs text-gray-500">currently inactive</p>
-          </div>
-        </div>
-      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+        <h3 style="font-size:16px; font-weight:700; margin:0;">Supplier Database</h3>
 
-      <div class="grid grid-cols-1 gap-4">
-        <!-- SUPPLIER TABLE -->
-        <div class="bg-white border rounded-xl p-6">
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 gap-3">
-            <form method="GET" action="" class="relative flex-1 max-w-md">
-              <input
-                type="text"
-                name="search"
-                id="searchInput"
-                value="<?= htmlspecialchars($search) ?>"
-                placeholder="Search suppliers by name..."
-                class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
-
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div class="search-wrap">
+            <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <form method="GET" id="filterForm" style="margin:0;">
+              <input type="text" name="search" id="searchInput" value="<?= htmlspecialchars($search) ?>" placeholder="Search by name...">
               <?php if ($search !== ''): ?>
-                <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <span class="material-icons text-sm">close</span>
-                </a>
+                <a href="?" class="search-clear">×</a>
               <?php endif; ?>
             </form>
-
-            <button id="openAddSupplierModal"
-              class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
-              + Add Supplier
-            </button>
           </div>
 
-          <?php if (isset($_SESSION['create-success'])): ?>
-            <div id="successAlert"
-              class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
-              <?= $_SESSION['create-success'] ?>
-            </div>
-            <?php unset($_SESSION['create-success']); ?>
-          <?php endif; ?>
+          <button id="openAddSupplierModal" class="btn-primary">+ Add Supplier</button>
+        </div>
+      </div>
 
-          <?php if (isset($_SESSION['create-error'])): ?>
-            <div id="errorAlert" class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
-              <?= $_SESSION['create-error'] ?>
-            </div>
-            <?php unset($_SESSION['create-error']); ?>
-          <?php endif; ?>
+      <?php if ($search !== ''): ?>
+        <div style="background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.2); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+          Results for "<strong style="color:var(--text)"><?= htmlspecialchars($search) ?></strong>" — <?= $totalSuppliers ?> supplier<?= $totalSuppliers !== 1 ? 's' : '' ?>
+          <a href="?" style="color:var(--accent); margin-left:12px; font-weight:600;">Clear</a>
+        </div>
+      <?php endif; ?>
 
-          <?php if ($search !== ''): ?>
-            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              Showing results for "<strong><?= htmlspecialchars($search) ?></strong>"
-              (<?= $totalSuppliers ?> supplier<?= $totalSuppliers !== 1 ? 's' : '' ?>)
-              <a href="?" class="ml-2 text-blue-600 hover:underline">Clear search</a>
-            </div>
-          <?php endif; ?>
+      <?php if (isset($_SESSION['create-success'])): ?>
+        <div class="alert alert-success"><?= $_SESSION['create-success'] ?></div>
+        <?php unset($_SESSION['create-success']); ?>
+      <?php endif; ?>
+      <?php if (isset($_SESSION['create-error'])): ?>
+        <div class="alert alert-error"><?= $_SESSION['create-error'] ?></div>
+        <?php unset($_SESSION['create-error']); ?>
+      <?php endif; ?>
 
-          <h4 class="text-lg font-semibold mb-2">Supplier Database</h4>
-          <p class="text-sm text-gray-500 mb-4"><?= $totalSuppliers ?> supplier<?= $totalSuppliers !== 1 ? 's' : '' ?> found</p>
-
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th>Orders</th>
+              <th>Total Spent</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (!empty($suppliers)): ?>
+              <?php foreach ($suppliers as $sp): ?>
                 <tr>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spent
-                  </th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <?php if (!empty($suppliers)): ?>
-                  <?php foreach ($suppliers as $sp): ?>
-                    <tr class="hover:bg-gray-50">
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($sp['supplier_name']) ?></p>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <p class="text-gray-900 font-medium"><?= $sp['order_count'] ?></p>
-                        <p class="text-xs">
-                          Last:
-                          <?= $sp['last_order_date'] ? date('F j, Y, g:i A', strtotime($sp['last_order_date'])) : 'N/A' ?>
-                        </p>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <p class="text-gray-900 font-medium">₱<?= number_format($sp['total_spent'], 2) ?></p>
-                      </td>
-                      <?php if ($sp['status'] == 1): ?>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                          <span class="status-label bg-green-100 text-green-800">Active</span>
-                        </td>
-                      <?php elseif ($sp['status'] == 0): ?>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                          <span class="status-label bg-red-100 text-red-800">Inactive</span>
-                        </td>
-                      <?php else: ?>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                          <span class="status-label bg-red-100 text-red-800">Error</span>
-                        </td>
-                      <?php endif; ?>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div class="flex space-x-2">
-                          <button class="text-blue-400 hover:text-blue-600 openViewSupplierModal"
-                            data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
-                            data-contact="<?= htmlspecialchars($sp['contact_number']) ?>"
-                            data-email="<?= htmlspecialchars($sp['email']) ?>" data-status="<?= $sp['status'] ?>"
-                            title="View Supplier">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path
-                                d="M10 3C5 3 1.73 7.11 1.05 10c.68 2.89 3.95 7 8.95 7s8.27-4.11 8.95-7c-.68-2.89-3.95-7-8.95-7zM10 15a5 5 0 110-10 5 5 0 010 10zm0-2a3 3 0 100-6 3 3 0 000 6z" />
-                            </svg>
-                          </button>
-                          <button class="text-green-400 hover:text-green-600 openEditSupplierModal"
-                            data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
-                            data-contact="<?= htmlspecialchars($sp['contact_number']) ?>"
-                            data-email="<?= htmlspecialchars($sp['email']) ?>" data-status="<?= $sp['status'] ?>"
-                            title="Edit Supplier">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                              <path fill-rule="evenodd"
-                                d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
-                                clip-rule="evenodd" />
-                            </svg>
-                          </button>
-                          <button class="text-red-500 hover:text-red-700 openArchiveSupplierModal"
-                            data-id="<?= $sp['supplier_id'] ?>" data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
-                            title="Archive Supplier">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd"
-                                d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                                clip-rule="evenodd" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
-                <?php else: ?>
-                  <tr>
-                    <td colspan="5" class="px-6 py-10 text-center text-gray-500">
-                      <?= $search !== '' ? 'No suppliers found matching your search.' : 'No suppliers found.' ?>
-                    </td>
-                  </tr>
-                <?php endif; ?>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination Controls -->
-          <?php if ($totalPages > 1): ?>
-            <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
-              <div class="text-sm text-gray-700">
-                Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
-              </div>
-
-              <nav class="flex items-center space-x-1">
-                <?php
-                $searchParam = $search !== '' ? '&search=' . urlencode($search) : '';
-                ?>
-
-                <!-- Previous -->
-                <?php if ($page > 1): ?>
-                  <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Previous
-                  </a>
-                <?php else: ?>
-                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Previous
-                  </span>
-                <?php endif; ?>
-
-                <?php
-                $range = 2;
-                $start = max(1, $page - $range);
-                $end = min($totalPages, $page + $range);
-
-                // Show first page and ellipsis if needed
-                if ($start > 1): ?>
-                  <a href="?page=1<?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    1
-                  </a>
-                  <?php if ($start > 2): ?>
-                    <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                  <?php endif; ?>
-                <?php endif; ?>
-
-                <?php
-                // Show page numbers in range
-                for ($i = $start; $i <= $end; $i++):
-                  if ($i === $page): ?>
-                    <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                      <?= $i ?>
+                  <td style="font-weight:600;"><?= htmlspecialchars($sp['supplier_name']) ?></td>
+                  <td>
+                    <?php  ?>
+                    <div style="font-weight:600;"><?= $sp['order_count'] > 1 ? $sp['order_count'] . ' orders' : $sp['order_count'] . ' order' ?></div>
+                    <div class="muted" style="font-size:12px; margin-top:2px;">
+                      <?= $sp['last_order_date'] ? 'Last: ' . date('M j, Y g:i A', strtotime($sp['last_order_date'])) : '' ?>
+                    </div>
+                  </td>
+                  <td>₱<?= number_format($sp['total_spent'], 2) ?></td>
+                  <td>
+                    <span class="status-pill <?= $sp['status'] == 1 ? 'status-active' : 'status-inactive' ?>">
+                      <?= $sp['status'] == 1 ? 'Active' : 'Inactive' ?>
                     </span>
-                  <?php else: ?>
-                    <a href="?page=<?= $i ?><?= $searchParam ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                      <?= $i ?>
-                    </a>
-                  <?php endif; ?>
-                <?php endfor; ?>
+                  </td>
+                  <td>
+                    <div class="actions-wrap">
+                      <button class="btn-action view openViewSupplierModal"
+                        data-id="<?= $sp['supplier_id'] ?>"
+                        data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
+                        data-contact="<?= htmlspecialchars($sp['contact_number'] ?? '') ?>"
+                        data-email="<?= htmlspecialchars($sp['email'] ?? '') ?>"
+                        data-status="<?= $sp['status'] ?>"
+                        title="View">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
 
-                <?php
-                // Show ellipsis and last page if needed
-                if ($end < $totalPages): ?>
-                  <?php if ($end < $totalPages - 1): ?>
-                    <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                  <?php endif; ?>
-                  <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    <?= $totalPages ?>
-                  </a>
-                <?php endif; ?>
+                      <button class="btn-action edit openEditSupplierModal"
+                        data-id="<?= $sp['supplier_id'] ?>"
+                        data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
+                        data-contact="<?= htmlspecialchars($sp['contact_number'] ?? '') ?>"
+                        data-email="<?= htmlspecialchars($sp['email'] ?? '') ?>"
+                        data-status="<?= $sp['status'] ?>"
+                        title="Edit">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
 
-                <!-- Next -->
-                <?php if ($page < $totalPages): ?>
-                  <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Next
-                  </a>
-                <?php else: ?>
-                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Next
+                      <button class="btn-action archive openArchiveSupplierModal"
+                        data-id="<?= $sp['supplier_id'] ?>"
+                        data-name="<?= htmlspecialchars($sp['supplier_name']) ?>"
+                        title="Archive">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr>
+                <td colspan="5" style="text-align:center; padding:60px 20px; color:var(--text-muted); font-size:15px;">
+                  <?= $search ? 'No matching suppliers found.' : 'No suppliers registered yet.' ?>
+                </td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <?php if ($totalPages > 1):
+        $q = $search ? '&search=' . urlencode($search) : '';
+      ?>
+        <div class="pagination">
+          <div style="font-size:12px; color:var(--text-muted);">
+            Page <strong style="color:var(--text)"><?= $page ?></strong> of <strong style="color:var(--text)"><?= $totalPages ?></strong>
+          </div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <?php if ($page > 1): ?>
+              <a href="?page=<?= $page - 1 ?><?= $q ?>" class="page-btn">‹ Prev</a>
+            <?php else: ?>
+              <span class="page-btn disabled">‹ Prev</span>
+            <?php endif; ?>
+
+            <?php
+            $range = 2;
+            $start = max(1, $page - $range);
+            $end   = min($totalPages, $page + $range);
+            if ($start > 1): ?>
+              <a href="?page=1<?= $q ?>" class="page-btn">1</a>
+              <?php if ($start > 2): ?><span style="padding:6px 8px; color:var(--text-muted);">…</span><?php endif; ?>
+            <?php endif; ?>
+
+            <?php for ($i = $start; $i <= $end; $i++): ?>
+              <?php if ($i === $page): ?>
+                <span class="page-btn active"><?= $i ?></span>
+              <?php else: ?>
+                <a href="?page=<?= $i ?><?= $q ?>" class="page-btn"><?= $i ?></a>
+              <?php endif; ?>
+            <?php endfor; ?>
+
+            <?php if ($end < $totalPages): ?>
+              <?php if ($end < $totalPages - 1): ?><span style="padding:6px 8px; color:var(--text-muted);">…</span><?php endif; ?>
+              <a href="?page=<?= $totalPages ?><?= $q ?>" class="page-btn"><?= $totalPages ?></a>
+            <?php endif; ?>
+
+            <?php if ($page < $totalPages): ?>
+              <a href="?page=<?= $page + 1 ?><?= $q ?>" class="page-btn">Next ›</a>
+            <?php else: ?>
+              <span class="page-btn disabled">Next ›</span>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+    </div>
+
+    <!-- Recent Orders & Top Suppliers -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:32px;">
+      <!-- Recent Orders -->
+      <div style="background:var(--surface); border:1.5px solid var(--border); border-radius:14px; padding:20px;">
+        <h4 style="font-size:15px; font-weight:700; margin-bottom:12px;">Recent Orders</h4>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:16px;">Latest purchase activity</p>
+
+        <div class="recent-list">
+          <?php
+          $recent = array_filter($purchase_orders, fn($po) => in_array($po['status'], ['Received', 'Ordered']));
+          $recent = array_slice($recent, 0, 5);
+          ?>
+          <?php if ($recent): ?>
+            <?php foreach ($recent as $po): ?>
+              <div class="recent-item">
+                <div>
+                  <p style="font-weight:600;"><?= htmlspecialchars($po['po_number']) ?></p>
+                  <p style="color:var(--text-muted); font-size:12px; margin-top:2px;"><?= htmlspecialchars($po['supplier_name']) ?></p>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-weight:600;">₱<?= number_format($po['grand_total'], 2) ?></div>
+                  <span class="status-pill <?= $po['status'] === 'Received' ? 'status-active' : 'status-ordered' ?>">
+                    <?= $po['status'] ?>
                   </span>
-                <?php endif; ?>
-              </nav>
+                  <div style="color:var(--text-muted); font-size:11px; margin-top:4px;">
+                    <?= date('M j, Y', strtotime($po['date'])) ?>
+                  </div>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div style="text-align:center; color:var(--text-muted); padding:30px 0;">
+              No recent orders yet.
             </div>
           <?php endif; ?>
         </div>
+      </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <!-- Top Suppliers -->
+      <div style="background:var(--surface); border:1.5px solid var(--border); border-radius:14px; padding:20px;">
+        <h4 style="font-size:15px; font-weight:700; margin-bottom:12px;">Top Suppliers</h4>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:16px;">By total spending</p>
 
+        <div class="top-list">
           <?php
-          $recentOrders = array_filter($purchase_orders, function ($po) {
-            return in_array($po['status'], ['Received', 'Ordered']);
-          });
-          $recentOrders = array_slice($recentOrders, 0, 3);
+          usort($allSuppliers, fn($a, $b) => $b['total_spent'] <=> $a['total_spent']);
+          $top = array_slice($allSuppliers, 0, 5);
           ?>
-
-          <!-- Recent Orders -->
-          <div class="bg-white border rounded-xl p-6">
-            <h4 class="text-lg font-semibold mb-2">Recent Orders</h4>
-            <p class="text-sm text-gray-500 mb-4">Latest purchase orders</p>
-            <ul class="space-y-4 text-sm">
-              <?php foreach ($recentOrders as $po): ?>
-                <li class="flex justify-between items-start">
-                  <div>
-                    <p class="font-medium"><?= htmlspecialchars($po['po_number']); ?></p>
-                    <p class="text-xs text-gray-500"><?= htmlspecialchars($po['supplier_name']); ?></p>
-                    <p class="font-bold">₱<?= number_format($po['grand_total'], 2); ?></p>
-                  </div>
-                  <div class="text-right">
-                    <?php if ($po['status'] === 'Received'): ?>
-                      <span class="status-label bg-green-100 text-green-800"><?= $po['status']; ?></span>
-                    <?php elseif ($po['status'] === 'Ordered'): ?>
-                      <span class="status-label bg-blue-100 text-blue-800"><?= $po['status']; ?></span>
-                    <?php endif; ?>
-                    <p class="text-xs text-gray-500"><?= date('F j, Y, g:i A', strtotime($po['date'])); ?></p>
-                  </div>
-                </li>
-              <?php endforeach; ?>
-            </ul>
-          </div>
-
-          <?php
-          usort($allSuppliers, function ($a, $b) {
-            return $b['total_spent'] <=> $a['total_spent'];
-          });
-          ?>
-
-          <!-- Top Suppliers -->
-          <div class="bg-white border rounded-xl p-6">
-            <h4 class="text-lg font-semibold mb-2">Top Suppliers</h4>
-            <p class="text-sm text-gray-500 mb-4">By total spending</p>
-            <ul class="space-y-4">
-              <?php foreach ($allSuppliers as $index => $sp): ?>
-                <?php if ($index >= 3) break; ?>
-                <li class="flex justify-between items-center">
-                  <div class="flex items-center space-x-2">
-                    <span class="text-lg font-bold"><?= $index + 1; ?>.</span>
-                    <p class="text-sm font-medium"><?= htmlspecialchars($sp['supplier_name']); ?></p>
-                  </div>
-                  <span class="font-bold text-gray-800">₱<?= number_format($sp['total_spent']); ?></span>
-                </li>
-              <?php endforeach; ?>
-            </ul>
-          </div>
-
+          <?php if ($top): ?>
+            <?php foreach ($top as $i => $sp): ?>
+              <div class="top-item">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:15px; font-weight:700; color:var(--text-muted); min-width:24px;"><?= $i + 1 ?>.</span>
+                  <span style="font-weight:600;"><?= htmlspecialchars($sp['supplier_name']) ?></span>
+                </div>
+                <span style="font-weight:600;">₱<?= number_format($sp['total_spent'], 0) ?></span>
+              </div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div style="text-align:center; color:var(--text-muted); padding:30px 0;">
+              No spending data yet.
+            </div>
+          <?php endif; ?>
         </div>
-    </section>
+      </div>
+    </div>
+
   </main>
 
   <!-- Add Supplier Modal -->
-  <div id="addSupplierModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-md p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold">Add New Supplier</h3>
-        <button id="closeAddSupplierModal" class="text-gray-500 hover:text-gray-700">
-          &times;
-        </button>
-      </div>
+  <div id="addSupplierModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Add New Supplier</h3>
 
-      <form id="addSupplierForm" method="POST" class="space-y-4">
-        <div>
-          <label for="supplier_name" class="block text-sm font-medium text-gray-700">Supplier Name</label>
-          <input type="text" name="supplier_name" id="supplier_name" required
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      <form method="POST">
+        <div class="form-group">
+          <label>Supplier Name *</label>
+          <input type="text" name="supplier_name" required class="form-input" placeholder="e.g. NZXT Philippines">
         </div>
-
-        <div>
-          <label for="contact_number" class="block text-sm font-medium text-gray-700">Contact Number</label>
-          <input type="text" name="contact_number" id="contact_number"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Contact Number</label>
+          <input type="text" name="contact_number" class="form-input" placeholder="+63 912 345 6789">
         </div>
-
-        <div>
-          <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
-          <input type="email" name="email" id="email"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" class="form-input" placeholder="contact@supplier.com">
         </div>
-
-        <div>
-          <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-          <select name="status" id="status"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status" class="form-select">
             <option value="1" selected>Active</option>
             <option value="0">Inactive</option>
           </select>
         </div>
 
-        <div class="flex justify-end space-x-2 pt-4">
-          <button type="button" id="cancelModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button name="create_supplier" type="submit" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
-            Save Supplier
-          </button>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="cancelAddSupplier">Cancel</button>
+          <button type="submit" name="create_supplier" class="btn-confirm-ok">Add Supplier</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Update Supplier Modal -->
-  <div id="editSupplierModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-md p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold">Update Supplier</h3>
-        <button id="closeEditSupplierModal" class="text-gray-500 hover:text-gray-700">&times;</button>
-      </div>
+  <!-- Edit Supplier Modal -->
+  <div id="editSupplierModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Edit Supplier</h3>
 
-      <form id="editSupplierForm" method="POST" class="space-y-4">
+      <form method="POST">
         <input type="hidden" name="supplier_id" id="edit_supplier_id">
 
-        <div>
-          <label for="edit_supplier_name" class="block text-sm font-medium text-gray-700">Supplier Name</label>
-          <input type="text" name="supplier_name" id="edit_supplier_name" required
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Supplier Name *</label>
+          <input type="text" name="supplier_name" id="edit_supplier_name" required class="form-input">
         </div>
-
-        <div>
-          <label for="edit_contact_number" class="block text-sm font-medium text-gray-700">Contact Number</label>
-          <input type="text" name="contact_number" id="edit_contact_number"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Contact Number</label>
+          <input type="text" name="contact_number" id="edit_contact_number" class="form-input">
         </div>
-
-        <div>
-          <label for="edit_email" class="block text-sm font-medium text-gray-700">Email Address</label>
-          <input type="email" name="email" id="edit_email"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" id="edit_email" class="form-input">
         </div>
-
-        <div>
-          <label for="edit_status" class="block text-sm font-medium text-gray-700">Status</label>
-          <select name="status" id="edit_status"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status" id="edit_status" class="form-select">
             <option value="1">Active</option>
             <option value="0">Inactive</option>
           </select>
         </div>
 
-        <div class="flex justify-end space-x-2 pt-4">
-          <button type="button" id="cancelEditModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button name="update_supplier" type="submit" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">
-            Update Supplier
-          </button>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="cancelEditSupplier">Cancel</button>
+          <button type="submit" name="update_supplier" class="btn-confirm-ok">Save Changes</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Archive Supplier Modal -->
-  <div id="archiveSupplierModal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-sm p-6">
-      <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Supplier</h3>
-      <p class="mb-4 text-sm text-gray-700">
-        Are you sure you want to archive <span id="archive_supplier_name" class="font-bold"></span>?
-        This action can be undone.
+  <!-- Archive Confirmation Modal -->
+  <div id="archiveSupplierModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:420px;">
+      <h3>Archive Supplier</h3>
+      <p style="margin:20px 0;">
+        Archive <strong id="archive_supplier_name" style="color:var(--text)"></strong>?<br>
+        This can be undone later.
       </p>
-
       <form method="POST">
         <input type="hidden" name="supplier_id" id="archive_supplier_id">
-        <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelArchiveModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button type="submit" name="archive_supplier"
-            class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
-            Confirm Archive
-          </button>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="cancelArchiveSupplier">Cancel</button>
+          <button type="submit" name="archive_supplier" class="btn-confirm-warning">Confirm Archive</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- View Supplier Modal -->
-  <div id="viewSupplierModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold text-gray-900">Supplier Details</h3>
-        <button id="closeViewSupplierModal"
-          class="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
+  <div id="viewSupplierModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Supplier Details</h3>
+
+      <div style="margin:20px 0; font-size:13.5px; line-height:1.6;">
+        <div><strong>Name:</strong> <span id="view_supplier_name"></span></div>
+        <div><strong>Contact:</strong> <span id="view_contact_number"></span></div>
+        <div><strong>Email:</strong> <span id="view_email"></span></div>
+        <div><strong>Status:</strong> <span id="view_status" class="status-pill"></span></div>
       </div>
 
-      <div class="space-y-3 text-sm text-gray-700">
-        <div>
-          <span class="font-semibold">Company Name:</span>
-          <p id="view_supplier_name" class="text-gray-900"></p>
-        </div>
-        <div>
-          <span class="font-semibold">Contact Number:</span>
-          <p id="view_contact_number" class="text-gray-900"></p>
-        </div>
-        <div>
-          <span class="font-semibold">Email Address:</span>
-          <p id="view_email" class="text-gray-900"></p>
-        </div>
-        <div>
-          <span class="font-semibold">Status:</span>
-          <p id="view_status" class="inline-block px-2 py-1 text-xs font-medium rounded-full"></p>
-        </div>
-      </div>
-      <div class="flex justify-end mt-6">
-        <button
-          class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-600 bg-green-100 hover:bg-green-200 rounded-md transition openEditSupplierModal"
-          id="viewToEditBtn" data-id="" data-name="" data-contact="" data-email="" data-status="">
-          Edit
-        </button>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="closeViewSupplier">Close</button>
+        <button type="button" class="btn-confirm-ok openEditSupplierModal" id="viewToEditBtn">Edit</button>
       </div>
     </div>
   </div>
 
-  <!-- BugerBar Toggle -->
   <script>
-    const sidebar = document.getElementById('mobile-sidebar');
-    const toggleBtn = document.getElementById('sidebar-toggle');
-
-    toggleBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('-translate-x-full');
-    });
-  </script>
-
-  <!-- BugerBar Close -->
-  <script>
-    const closeBtn = document.getElementById('sidebar-close');
-
-    closeBtn.addEventListener('click', () => {
-      sidebar.classList.add('-translate-x-full');
-    });
-  </script>
-
-  <!-- Save scroll before reload/submit -->
-  <script>
-    window.addEventListener('beforeunload', () => {
-      sessionStorage.setItem('scrollPos', window.scrollY);
-    });
-
-    window.addEventListener('load', () => {
-      const scrollPos = sessionStorage.getItem('scrollPos');
-      if (scrollPos) {
-        window.scrollTo(0, parseInt(scrollPos));
-        sessionStorage.removeItem('scrollPos');
-      }
-    });
-  </script>
-
-  <!-- Unset Alert -->
-  <script>
-    const successAlert = document.getElementById('successAlert');
-    if (successAlert) {
-      setTimeout(() => {
-        successAlert.style.display = 'none';
-        fetch('unset_alert.php');
-      }, 3000);
+    // Modal helpers
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
     }
 
-    const errorAlert = document.getElementById('errorAlert');
-    if (errorAlert) {
-      setTimeout(() => {
-        errorAlert.style.display = 'none';
-        fetch('unset_alert.php');
-      }, 3000);
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
     }
-  </script>
 
-  <!-- Auto-submit search form after user stops typing -->
-  <script>
-    let searchTimeout;
-    const searchInput = document.getElementById('searchInput');
-    const searchForm = searchInput.closest('form');
-
-    if (searchInput) {
-      searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          searchForm.submit();
-        }, 500);
-      });
-    }
-  </script>
-
-  <!-- Add Supplier Script -->
-  <script>
-    const openModalBtn = document.getElementById('openAddSupplierModal');
-    const closeModalBtn = document.getElementById('closeAddSupplierModal');
-    const cancelModalBtn = document.getElementById('cancelModalBtn');
-    const modal = document.getElementById('addSupplierModal');
-
-    openModalBtn.addEventListener('click', () => {
-      modal.classList.remove('hidden');
-    });
-
-    closeModalBtn.addEventListener('click', () => {
-      modal.classList.add('hidden');
-    });
-
-    cancelModalBtn.addEventListener('click', () => {
-      modal.classList.add('hidden');
-    });
-
-    window.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        modal.classList.add('hidden');
-      }
-    });
-  </script>
-
-  <!-- Edit Supplier Script -->
-  <script>
-    const editButtons = document.querySelectorAll('.openEditSupplierModal');
-    const editModal = document.getElementById('editSupplierModal');
-    const closeEditModal = document.getElementById('closeEditSupplierModal');
-    const cancelEditModal = document.getElementById('cancelEditModalBtn');
-
-    editButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const id = button.dataset.id;
-        const name = button.dataset.name;
-        const contact = button.dataset.contact;
-        const email = button.dataset.email;
-        const status = button.dataset.status;
-
-        document.getElementById('edit_supplier_id').value = id;
-        document.getElementById('edit_supplier_name').value = name;
-        document.getElementById('edit_contact_number').value = contact;
-        document.getElementById('edit_email').value = email;
-        document.getElementById('edit_status').value = status;
-
-        editModal.classList.remove('hidden');
+    document.querySelectorAll('.modal-overlay').forEach(m => {
+      m.addEventListener('click', e => {
+        if (e.target === m) closeModal(m.id);
       });
     });
 
-    closeEditModal.addEventListener('click', () => {
-      editModal.classList.add('hidden');
-    });
+    // Add Supplier
+    document.getElementById('openAddSupplierModal')?.addEventListener('click', () => openModal('addSupplierModal'));
+    document.getElementById('cancelAddSupplier')?.addEventListener('click', () => closeModal('addSupplierModal'));
 
-    cancelEditModal.addEventListener('click', () => {
-      editModal.classList.add('hidden');
-    });
-
-    window.addEventListener('click', (e) => {
-      if (e.target === editModal) {
-        editModal.classList.add('hidden');
-      }
-    });
-  </script>
-
-  <!-- Archive Supplier Script -->
-  <script>
-    const archiveButtons = document.querySelectorAll('.openArchiveSupplierModal');
-    const archiveModal = document.getElementById('archiveSupplierModal');
-    const archiveSupplierId = document.getElementById('archive_supplier_id');
-    const archiveSupplierName = document.getElementById('archive_supplier_name');
-    const cancelArchiveBtn = document.getElementById('cancelArchiveModalBtn');
-
-    archiveButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const id = button.getAttribute('data-id');
-        const name = button.getAttribute('data-name');
-
-        archiveSupplierId.value = id;
-        archiveSupplierName.textContent = name;
-
-        archiveModal.classList.remove('hidden');
+    // Edit Supplier
+    document.querySelectorAll('.openEditSupplierModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const data = btn.dataset;
+        document.getElementById('edit_supplier_id').value = data.id;
+        document.getElementById('edit_supplier_name').value = data.name;
+        document.getElementById('edit_contact_number').value = data.contact || '';
+        document.getElementById('edit_email').value = data.email || '';
+        document.getElementById('edit_status').value = data.status;
+        openModal('editSupplierModal');
       });
     });
+    document.getElementById('cancelEditSupplier')?.addEventListener('click', () => closeModal('editSupplierModal'));
 
-    cancelArchiveBtn.addEventListener('click', () => {
-      archiveModal.classList.add('hidden');
+    // Archive Supplier
+    document.querySelectorAll('.openArchiveSupplierModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('archive_supplier_id').value = btn.dataset.id;
+        document.getElementById('archive_supplier_name').textContent = btn.dataset.name;
+        openModal('archiveSupplierModal');
+      });
     });
+    document.getElementById('cancelArchiveSupplier')?.addEventListener('click', () => closeModal('archiveSupplierModal'));
 
-    window.addEventListener('click', (e) => {
-      if (e.target === archiveModal) {
-        archiveModal.classList.add('hidden');
-      }
-    });
-  </script>
-
-  <!-- View Supplier Script -->
-  <script>
-    const viewButtons = document.querySelectorAll('.openViewSupplierModal');
-    const viewModal = document.getElementById('viewSupplierModal');
-    const closeViewModal = document.getElementById('closeViewSupplierModal');
-
-    const editBtnInsideView = document.getElementById('viewToEditBtn');
-
-    viewButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const id = button.dataset.id;
-        const name = button.dataset.name;
-        const contact = button.dataset.contact;
-        const email = button.dataset.email;
-        const status = button.dataset.status;
-
-        document.getElementById('view_supplier_name').textContent = name;
-        document.getElementById('view_contact_number').textContent = contact;
-        document.getElementById('view_email').textContent = email;
+    // View Supplier + Edit from View
+    document.querySelectorAll('.openViewSupplierModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const data = btn.dataset;
+        document.getElementById('view_supplier_name').textContent = data.name;
+        document.getElementById('view_contact_number').textContent = data.contact || '—';
+        document.getElementById('view_email').textContent = data.email || '—';
 
         const statusEl = document.getElementById('view_status');
-        statusEl.textContent = status === "1" ? "Active" : "Inactive";
-        statusEl.className = `inline-block px-2 py-1 text-xs font-medium rounded-full ${status === "1"
-          ? 'bg-green-100 text-green-800'
-          : 'bg-red-100 text-red-800'
-          }`;
+        statusEl.textContent = data.status == "1" ? "Active" : "Inactive";
+        statusEl.className = `status-pill ${data.status == "1" ? 'status-active' : 'status-inactive'}`;
 
-        editBtnInsideView.dataset.id = id;
-        editBtnInsideView.dataset.name = name;
-        editBtnInsideView.dataset.contact = contact;
-        editBtnInsideView.dataset.email = email;
-        editBtnInsideView.dataset.status = status;
+        // Pass data to edit button inside view modal
+        const editBtn = document.getElementById('viewToEditBtn');
+        editBtn.dataset.id = data.id;
+        editBtn.dataset.name = data.name;
+        editBtn.dataset.contact = data.contact || '';
+        editBtn.dataset.email = data.email || '';
+        editBtn.dataset.status = data.status;
 
-        viewModal.classList.remove('hidden');
+        openModal('viewSupplierModal');
       });
     });
+    document.getElementById('closeViewSupplier')?.addEventListener('click', () => closeModal('viewSupplierModal'));
 
-    closeViewModal.addEventListener('click', () => {
-      viewModal.classList.add('hidden');
+    // Live search
+    let timeout;
+    document.getElementById('searchInput')?.addEventListener('input', function() {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => this.closest('form').submit(), 450);
     });
 
-    window.addEventListener('click', (e) => {
-      if (e.target === viewModal) {
-        viewModal.classList.add('hidden');
-      }
-    });
+    // Sidebar sync
+    function syncMargin() {
+      const collapsed = document.getElementById('main-sidebar')?.classList.contains('collapsed');
+      document.querySelector('main').style.marginLeft = collapsed ? '64px' : '240px';
+    }
+    document.getElementById('sidebarCollapseBtn')?.addEventListener('click', () => setTimeout(syncMargin, 80));
+    syncMargin();
 
-    editBtnInsideView.addEventListener('click', () => {
-      viewModal.classList.add('hidden');
+    // Auto-dismiss alerts
+    document.querySelectorAll('.alert').forEach(el => {
+      setTimeout(() => el.style.opacity = '0', 3200);
+      setTimeout(() => el.remove(), 4000);
     });
   </script>
 

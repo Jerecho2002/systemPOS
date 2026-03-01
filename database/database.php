@@ -35,6 +35,11 @@ class Database
     {
         if (!isset($_SESSION['login-success'])) {
             header("Location: index.php");
+            exit;
+        }
+
+        if (!$this->conn()) {
+            die("Database connection not initialized. Cannot proceed.");
         }
     }
 
@@ -51,30 +56,38 @@ class Database
         }
     }
 
+    public function superadmin_session()
+    {
+        if (!isset($_SESSION['user_id']) || $_SESSION['user-role'] !== 'superadmin') {
+            header("Location: index.php");
+            exit;
+        }
+    }
+
     public function register()
     {
         $errors = [];
         if (isset($_POST['register'])) {
-            $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
-            $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING);
-            $role = filter_input(INPUT_POST, 'role', FILTER_SANITIZE_STRING);
+            $pdo = $this->conn();
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
 
-            $query = $this->conn()->prepare("SELECT username FROM users WHERE username = ?");
+            $role = 'staff';
+
+            $query = $pdo->prepare("SELECT user_id FROM users WHERE username = ?");
             $query->execute([$username]);
             $check_username = $query->fetch();
 
             $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
             if (empty($username) || empty($password)) {
-                $errors[] = "Do not leave the field empty";
+                $errors[] = "Do not leave any field empty";
             } else if (strlen($username) > 15) {
-                $errors[] = "Username is too long, cannot be exceed to 15 characters";
-            } else if (strlen($password) > 10) {
-                $errors[] = "Password is too long, cannot be exceed to 10 characters";
+                $errors[] = "Username cannot exceed 15 characters";
             } else if (!preg_match("/^[a-zA-Z\s]+$/", $username)) {
-                $errors[] = "Username cannot contain numbers";
-            } else if (!preg_match("/^[a-zA-Z0-9\s]+$/", $password)) {
-                $errors[] = "Password is invalid, contains numbers & letters only";
+                $errors[] = "Username cannot contain numbers or special characters";
+            } else if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W]).{8,20}$/', $password)) {
+                $errors[] = "Password must be 8-20 characters and include uppercase, lowercase, number, and special character";
             }
 
             if ($check_username) {
@@ -84,9 +97,9 @@ class Database
             if (!empty($errors)) {
                 $_SESSION['register-error'] = implode("<br><br>", $errors);
             } else {
-                $sql = $this->conn()->prepare("INSERT INTO users (`username`, `password`, `role`) VALUES (?,?,?)");
+                $sql = $pdo->prepare("INSERT INTO users (`username`, `password`, `role`) VALUES (?,?,?)");
                 $sql->execute([$username, $hashedPassword, $role]);
-                $_SESSION['register-success'] = "Successfully register " . $username . " you can now login";
+                $_SESSION['register-success'] = "Successfully registered " . $username . " as staff. You can now login.";
             }
         }
     }
@@ -95,33 +108,121 @@ class Database
     {
         $errors = [];
         if (isset($_POST['login'])) {
-            $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING);
+            $username = trim(filter_input(INPUT_POST, 'username', FILTER_SANITIZE_STRING));
             $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING);
 
-            $sql = $this->conn()->prepare("SELECT password, role, user_id FROM users WHERE username = ?");
-            $sql->execute([$username]);
-            $user = $sql->fetch();
-
-            if ($user) {
-                if (password_verify($password, $user['password'])) {
-                    $_SESSION['login-success'] = $username;
-                    $_SESSION['user_id'] = $user['user_id'];
-                    $_SESSION['user-role'] = $user['role'];
-                    header("Location: dashboard.php");
-                } else {
-                    $errors[] = "Wrong password";
-                }
+            if (empty($username) || empty($password)) {
+                $errors[] = "Do not leave the fields empty";
             } else {
-                $errors[] = "Wrong username";
-            }
+                $sql = $this->conn()->prepare("SELECT password, role, user_id, is_active FROM users WHERE username = ?");
+                $sql->execute([$username]);
+                $user = $sql->fetch();
 
-            if (empty($user) && empty($password)) {
-                $errors[] = "Do not leave the field empty";
+                if ($user) {
+                    if ($user['is_active'] == 0) {
+                        $errors[] = "This user account is deactivated.";
+                    } else if (password_verify($password, $user['password'])) {
+                        $_SESSION['login-success'] = $username;
+                        $_SESSION['user_id']       = $user['user_id'];
+                        $_SESSION['user-role']     = $user['role'];
+
+                        if ($user['role'] === 'superadmin') {
+                            header("Location: super_admin_page.php");
+                        } else {
+                            header("Location: dashboard.php");
+                        }
+                        exit;
+                    } else {
+                        $errors[] = "Wrong password";
+                    }
+                } else {
+                    $errors[] = "Wrong username";
+                }
             }
 
             if (!empty($errors)) {
                 $_SESSION['login-error'] = implode("<br>", $errors);
             }
+        }
+    }
+
+    public function update_staff()
+    {
+        if (isset($_POST['update_staff'])) {
+            $pdo = $this->conn();
+
+            $errors = [];
+
+            $user_id = $_POST['user_id'];
+            $username = trim($_POST['username'] ?? '');
+            $password = $_POST['password'] ?? '';
+
+            if (empty($username)) {
+                $errors[] = "Username cannot be empty.";
+            } else if (strlen($username) > 15) {
+                $errors[] = "Username cannot exceed 15 characters.";
+            } else if (!preg_match("/^[a-zA-Z\s]+$/", $username)) {
+                $errors[] = "Username cannot contain numbers or special characters.";
+            }
+
+            if (!empty($password) && !preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W]).{8,20}$/', $password)) {
+                $errors[] = "Password must be 8-20 characters and include uppercase, lowercase, number, and special character.";
+            }
+
+            $query = $pdo->prepare("SELECT user_id FROM users WHERE username = ? AND user_id != ?");
+            $query->execute([$username, $user_id]);
+            $check_username = $query->fetch();
+
+            if ($check_username) {
+                $errors[] = "Username is already taken.";
+            }
+
+            if (!empty($errors)) {
+                $_SESSION['register-error'] = implode("<br><br>", $errors);
+            } else {
+                if (!empty($password)) {
+                    $hashed = password_hash($password, PASSWORD_BCRYPT);
+                    $sql = $pdo->prepare("UPDATE users SET username = ?, password = ? WHERE user_id = ?");
+                    $sql->execute([$username, $hashed, $user_id]);
+                } else {
+                    $sql = $pdo->prepare("UPDATE users SET username = ? WHERE user_id = ?");
+                    $sql->execute([$username, $user_id]);
+                }
+
+                $_SESSION['register-success'] = "Account " . $username . " successfully updated.";
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit;
+            }
+        }
+    }
+
+    public function deactivate_staff()
+    {
+        if (isset($_POST['deactivate_staff'])) {
+            $pdo = $this->conn();
+            $user_id = $_POST['user_id'];
+
+            $sql = $pdo->prepare("UPDATE users SET is_active = 0 WHERE user_id = ?");
+            $sql->execute([$user_id]);
+
+            $_SESSION['register-success'] = "Staff successfully deactivated.";
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
+        }
+    }
+
+    public function activate_staff()
+    {
+        if (isset($_POST['activate_staff'])) {
+            $pdo = $this->conn();
+            $user_id = $_POST['user_id'];
+
+            $sql = $pdo->prepare("UPDATE users SET is_active = 1 WHERE user_id = ?");
+            $sql->execute([$user_id]);
+
+            $_SESSION['register-success'] = "Staff successfully activated.";
+            header("Location: " . $_SERVER['REQUEST_URI']);
+            exit;
         }
     }
 
@@ -326,54 +427,93 @@ class Database
         $errors = [];
 
         if (isset($_POST['create_item'])) {
-            $item_name = $_POST['item_name'];
-            $barcode = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
-            $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
-            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
-            $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_SANITIZE_NUMBER_INT);
-            $cost_price = filter_input(INPUT_POST, 'cost_price', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
-            $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
-            $quantity = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT);
-            $min_stock = filter_input(INPUT_POST, 'min_stock', FILTER_SANITIZE_NUMBER_INT);
+            $item_name     = trim($_POST['item_name'] ?? '');
+            $barcode       = trim($_POST['barcode'] ?? '');
+            $description   = trim($_POST['description'] ?? '');
+            $category_id   = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
+            $supplier_id   = filter_input(INPUT_POST, 'supplier_id', FILTER_VALIDATE_INT);
+            $cost_price    = filter_input(INPUT_POST, 'cost_price', FILTER_VALIDATE_FLOAT);
+            $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_VALIDATE_FLOAT);
+            $quantity      = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+            $min_stock     = filter_input(INPUT_POST, 'min_stock', FILTER_VALIDATE_INT);
 
             date_default_timezone_set('Asia/Manila');
-            $philippineDateTime = date('Y-m-d H:i:s');
+            $now = date('Y-m-d H:i:s');
 
-            if (
-                empty($item_name) || empty($barcode) || empty($category_id) || empty($supplier_id) ||
-                $cost_price === null || $selling_price === null || $quantity === null || $min_stock === null
-            ) {
-                $errors[] = "All fields marked with * are required.";
+            // ─── Validation ────────────────────────────────────────────────
+            if (empty($item_name)) {
+                $errors[] = "Item name is required.";
             }
-
-            if (!empty($item_name) && strlen($item_name) > 30) {
-                $errors[] = "Item name cannot exceed 30 characters.";
+            if (strlen($item_name) > 100) {
+                $errors[] = "Item name is too long (max 100 characters).";
             }
-
-            if (!preg_match("/^[a-zA-Z0-9\- ]+$/", $barcode)) {
-                $errors[] = "Barcode format is invalid. Only letters, numbers, spaces, and hyphens allowed.";
+            if (empty($barcode)) {
+                $errors[] = "Barcode is required.";
             }
-
-            if (!is_numeric($cost_price) || $cost_price < 0) {
-                $errors[] = "Cost price must be a positive number.";
+            if (!preg_match('/^[a-zA-Z0-9\- ]{4,50}$/', $barcode)) {
+                $errors[] = "Invalid barcode format (letters, numbers, spaces, hyphens only).";
             }
-
-            if (!is_numeric($selling_price) || $selling_price <= 0) {
+            if ($category_id === false || $category_id <= 0) {
+                $errors[] = "Valid category is required.";
+            }
+            if ($selling_price === false || $selling_price <= 0) {
                 $errors[] = "Selling price must be greater than 0.";
             }
-
-            if (!is_numeric($quantity) || $quantity < 0) {
-                $errors[] = "Quantity must be a non-negative number.";
+            if ($cost_price === false || $cost_price < 0) {
+                $errors[] = "Cost price cannot be negative.";
+            }
+            if ($quantity === false || $quantity < 0) {
+                $errors[] = "Quantity cannot be negative.";
+            }
+            if ($min_stock === false || $min_stock < 0) {
+                $errors[] = "Minimum stock cannot be negative.";
             }
 
-            if (!is_numeric($min_stock) || $min_stock < 0) {
-                $errors[] = "Minimum stock must be a non-negative number.";
+            // Barcode uniqueness check
+            $stmt = $this->conn()->prepare("SELECT 1 FROM items WHERE barcode = ?");
+            $stmt->execute([$barcode]);
+            if ($stmt->fetch()) {
+                $errors[] = "This barcode is already in use.";
             }
 
-            $query = $this->conn()->prepare("SELECT barcode FROM items WHERE barcode = ?");
-            $query->execute([$barcode]);
-            if ($query->fetch()) {
-                $errors[] = "Barcode is already taken.";
+            // ─── Image handling ─────────────────────────────────────────────
+            $image_filename = null;
+
+            if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                $max_size = 5 * 1024 * 1024; // 5MB
+
+                $file = $_FILES['image'];
+
+                if ($file['size'] > $max_size) {
+                    $errors[] = "Image file is too large (maximum 5MB).";
+                }
+                if (!in_array($file['type'], $allowed_types)) {
+                    $errors[] = "Only JPG, PNG, GIF, WebP images are allowed.";
+                }
+
+                if (empty($errors)) {
+                    $original_name = $file['name'];
+                    $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+
+                    $safe_base = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($original_name, PATHINFO_FILENAME));
+                    $safe_base = substr($safe_base, 0, 80); // prevent very long names
+
+                    $image_filename = $safe_base . '.' . $ext;
+
+                    // Avoid overwriting existing files
+                    $upload_path = 'uploads/products/' . $image_filename;
+                    $counter = 1;
+                    while (file_exists($upload_path)) {
+                        $image_filename = $safe_base . '-' . $counter . '.' . $ext;
+                        $upload_path = 'uploads/products/' . $image_filename;
+                        $counter++;
+                    }
+
+                    if (!move_uploaded_file($file['tmp_name'], $upload_path)) {
+                        $errors[] = "Failed to save uploaded image. Check folder permissions.";
+                    }
+                }
             }
 
             if (!empty($errors)) {
@@ -381,11 +521,28 @@ class Database
                 return;
             }
 
-            $sql = $this->conn()->prepare("INSERT INTO items (item_name, barcode, description, category_id, supplier_id, cost_price, selling_price, quantity, min_stock, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $philippineDateTime]);
+            // ─── Insert into database ──────────────────────────────────────
+            $sql = $this->conn()->prepare("
+            INSERT INTO items 
+            (item_name, barcode, description, category_id, supplier_id, 
+             cost_price, selling_price, quantity, min_stock, image, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+            $sql->execute([
+                $item_name,
+                $barcode,
+                $description,
+                $category_id,
+                $supplier_id,
+                $cost_price,
+                $selling_price,
+                $quantity,
+                $min_stock,
+                $image_filename,
+                $now
+            ]);
 
-            $_SESSION['create-success'] = "Successfully added item: " . htmlspecialchars($item_name);
-
+            $_SESSION['create-success'] = "Item added successfully: " . htmlspecialchars($item_name);
             header("Location: " . $_SERVER['REQUEST_URI']);
             exit;
         }
@@ -396,55 +553,187 @@ class Database
         $errors = [];
 
         if (isset($_POST['update_item'])) {
-            $item_id = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
-            $item_name = $_POST['item_name'];
-            $barcode = filter_input(INPUT_POST, 'barcode', FILTER_SANITIZE_STRING);
-            $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
-            $category_id = filter_input(INPUT_POST, 'category_id', FILTER_SANITIZE_NUMBER_INT);
-            $supplier_id = filter_input(INPUT_POST, 'supplier_id', FILTER_SANITIZE_NUMBER_INT);
-            $cost_price = filter_input(INPUT_POST, 'cost_price', FILTER_VALIDATE_FLOAT);
-            $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_VALIDATE_FLOAT);
-            $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
-            $min_stock = filter_input(INPUT_POST, 'min_stock', FILTER_VALIDATE_INT);
+            $item_id       = filter_input(INPUT_POST, 'item_id', FILTER_VALIDATE_INT);
+            $item_name     = trim($_POST['item_name'] ?? '');
+            $barcode       = trim($_POST['barcode'] ?? '');
+            $description   = trim($_POST['description'] ?? '');
+            $category_id   = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
+            $supplier_id   = filter_input(INPUT_POST, 'supplier_id', FILTER_VALIDATE_INT);
+            $min_stock     = filter_input(INPUT_POST, 'min_stock', FILTER_VALIDATE_INT);
 
             date_default_timezone_set('Asia/Manila');
-            $philippineDateTime = date('Y-m-d H:i:s');
+            $now = date('Y-m-d H:i:s');
 
-            if (
-                empty($item_name) || empty($barcode) || $selling_price === false ||
-                $category_id === false || $supplier_id === false ||
-                $cost_price === false || $quantity === false || $min_stock === false
-            ) {
-                $errors[] = "All fields marked with * are required and must be valid.";
-            } elseif (strlen($item_name) > 100) {
-                $errors[] = "Item name is too long. Max 100 characters allowed.";
-            } elseif (strlen($barcode) > 50) {
-                $errors[] = "Barcode is too long. Max 50 characters allowed.";
+            $isStaff = ($_SESSION['user-role'] ?? '') === 'staff';
+
+            if (!$isStaff) {
+                $cost_price    = filter_input(INPUT_POST, 'cost_price', FILTER_VALIDATE_FLOAT);
+                $selling_price = filter_input(INPUT_POST, 'selling_price', FILTER_VALIDATE_FLOAT);
+                $quantity      = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
             }
 
-            $stmt = $this->conn()->prepare("SELECT barcode FROM items WHERE barcode = ? AND item_id != ?");
+            // ─── Validation ────────────────────────────────────────────────
+            if (!$item_id) {
+                $errors[] = "Invalid item ID.";
+            }
+            if (empty($item_name)) {
+                $errors[] = "Item name is required.";
+            }
+            if (strlen($item_name) > 100) {
+                $errors[] = "Item name is too long (max 100 characters).";
+            }
+            if (empty($barcode)) {
+                $errors[] = "Barcode is required.";
+            }
+            if (strlen($barcode) > 50) {
+                $errors[] = "Barcode is too long (max 50 characters).";
+            }
+            if ($category_id === false || $category_id <= 0) {
+                $errors[] = "Valid category is required.";
+            }
+            if ($selling_price === false || $selling_price <= 0) {
+                $errors[] = "Selling price must be greater than 0.";
+            }
+            if (!$isStaff) {
+                if ($cost_price === false || $cost_price < 0) {
+                    $errors[] = "Cost price cannot be negative.";
+                }
+                if ($quantity === false || $quantity < 0) {
+                    $errors[] = "Quantity cannot be negative.";
+                }
+            }
+            if ($min_stock === false || $min_stock < 0) {
+                $errors[] = "Minimum stock cannot be negative.";
+            }
+
+            // Barcode unique (exclude current item)
+            $stmt = $this->conn()->prepare("SELECT 1 FROM items WHERE barcode = ? AND item_id != ?");
             $stmt->execute([$barcode, $item_id]);
             if ($stmt->fetch()) {
-                $errors[] = "Another item already uses this barcode.";
+                $errors[] = "This barcode is already used by another item.";
+            }
+
+            // ─── Image handling ─────────────────────────────────────────────
+            $image_filename = null;
+
+            if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                $max_size = 5 * 1024 * 1024;
+
+                $file = $_FILES['image'];
+
+                if ($file['size'] > $max_size) {
+                    $errors[] = "Image file is too large (maximum 5MB).";
+                }
+                if (!in_array($file['type'], $allowed_types)) {
+                    $errors[] = "Only JPG, PNG, GIF, WebP images are allowed.";
+                }
+
+                if (empty($errors)) {
+                    $original_name = $file['name'];
+                    $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+
+                    $safe_base = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($original_name, PATHINFO_FILENAME));
+                    $safe_base = substr($safe_base, 0, 80);
+
+                    $image_filename = $safe_base . '.' . $ext;
+
+                    $upload_path = 'uploads/products/' . $image_filename;
+                    $counter = 1;
+                    while (file_exists($upload_path)) {
+                        $image_filename = $safe_base . '-' . $counter . '.' . $ext;
+                        $upload_path = 'uploads/products/' . $image_filename;
+                        $counter++;
+                    }
+
+                    if (!move_uploaded_file($file['tmp_name'], $upload_path)) {
+                        $errors[] = "Failed to save new image. Check folder permissions.";
+                    }
+                }
             }
 
             if (!empty($errors)) {
-                $_SESSION['update-error'] = implode("<br><br>", $errors);
-            } else {
-                $sql = $this->conn()->prepare("
-                UPDATE items 
-                SET item_name = ?, barcode = ?, description = ?, category_id = ?, supplier_id = ?, cost_price = ?, selling_price = ?, quantity = ?, min_stock = ?, updated_at = ?
-                WHERE item_id = ?
-            ");
-                $sql->execute([$item_name, $barcode, $description, $category_id, $supplier_id, $cost_price, $selling_price, $quantity, $min_stock, $philippineDateTime, $item_id]);
-                $_SESSION['create-success'] = "Item '{$item_name}' has been updated successfully.";
+                $_SESSION['update-error'] = implode("<br>", $errors);
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit;
             }
 
+            // ─── Delete old image if new one is uploaded ───────────────────
+            if ($image_filename !== null) {
+                $old = $this->conn()->prepare("SELECT image FROM items WHERE item_id = ?");
+                $old->execute([$item_id]);
+                $old_image = $old->fetchColumn();
+
+                if ($old_image && file_exists('uploads/products/' . $old_image)) {
+                    @unlink('uploads/products/' . $old_image);
+                }
+            }
+
+            // ─── Build update query ────────────────────────────────────────
+            if ($isStaff) {
+                $sql = $this->conn()->prepare("
+                UPDATE items SET
+                    item_name = ?, barcode = ?, description = ?,
+                    category_id = ?, supplier_id = ?, min_stock = ?,
+                    " . ($image_filename !== null ? "image = ?, " : "") . "
+                    updated_at = ?
+                WHERE item_id = ?
+            ");
+
+                $params = [
+                    $item_name,
+                    $barcode,
+                    $description,
+                    $category_id,
+                    $supplier_id,
+                    $min_stock
+                ];
+
+                if ($image_filename !== null) {
+                    $params[] = $image_filename;
+                }
+
+                $params[] = $now;
+                $params[] = $item_id;
+            } else {
+                $sql = $this->conn()->prepare("
+                UPDATE items SET
+                    item_name = ?, barcode = ?, description = ?,
+                    category_id = ?, supplier_id = ?,
+                    cost_price = ?, selling_price = ?, quantity = ?,
+                    min_stock = ?,
+                    " . ($image_filename !== null ? "image = ?, " : "") . "
+                    updated_at = ?
+                WHERE item_id = ?
+            ");
+
+                $params = [
+                    $item_name,
+                    $barcode,
+                    $description,
+                    $category_id,
+                    $supplier_id,
+                    $cost_price,
+                    $selling_price,
+                    $quantity,
+                    $min_stock
+                ];
+
+                if ($image_filename !== null) {
+                    $params[] = $image_filename;
+                }
+
+                $params[] = $now;
+                $params[] = $item_id;
+            }
+
+            $sql->execute($params);
+
+            $_SESSION['create-success'] = "Item updated successfully: " . htmlspecialchars($item_name);
             header("Location: " . $_SERVER['REQUEST_URI']);
             exit;
         }
     }
-
     public function archive_item()
     {
         if (isset($_POST['archive_item'])) {
@@ -462,28 +751,80 @@ class Database
 
     public function select_items()
     {
-        $sql = $this->conn()->prepare("SELECT 
-        items.*, 
-        categories.category_name,
-        suppliers.supplier_name
+        $sql = $this->conn()->prepare("
+        SELECT 
+            items.*, 
+            categories.category_name,
+            suppliers.supplier_name
         FROM items
         LEFT JOIN categories ON items.category_id = categories.category_id
         LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
-        ");
+        WHERE items.is_deleted = 0
+    ");
         $sql->execute();
-        $items = $sql->fetchAll();
+        return $sql->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-        return $items;
+    public function getTotalItemsCountPOS($search = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM items
+            LEFT JOIN categories ON items.category_id = categories.category_id
+            LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
+            WHERE items.is_deleted = 0
+            AND items.quantity >= 0";
+
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND (items.item_name LIKE :search OR items.barcode LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function select_items_paginated_POS($offset, $perPage, $search = '')
+    {
+        $sql = "SELECT 
+                items.*, 
+                categories.category_name,
+                suppliers.supplier_name
+            FROM items
+            LEFT JOIN categories ON items.category_id = categories.category_id
+            LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
+            WHERE items.is_deleted = 0
+            AND items.quantity >= 0";
+
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND (items.item_name LIKE :search OR items.barcode LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " ORDER BY items.created_at DESC LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getTotalStockItemsCount($search = '')
     {
-        $sql = "SELECT COUNT(*) as total FROM items";
+        $sql = "SELECT COUNT(*) as total FROM items WHERE is_deleted = 0";
         $params = [];
 
         if ($search !== '') {
-            $sql .= " WHERE item_name LIKE :search 
-                  OR barcode LIKE :search";
+            $sql .= " AND (items.item_name LIKE :search OR items.barcode LIKE :search)";
             $params[':search'] = '%' . $search . '%';
         }
 
@@ -495,28 +836,28 @@ class Database
     public function select_stock_items_paginated($offset, $perPage, $search = '')
     {
         $sql = "SELECT 
-            items.*, 
-            categories.category_name,
-            suppliers.supplier_name,
-            CASE 
-                WHEN items.quantity <= 0 THEN 1
-                WHEN items.quantity > 0 AND items.quantity <= items.min_stock THEN 2
-                ELSE 3
-            END as stock_priority
-        FROM items
-        LEFT JOIN categories ON items.category_id = categories.category_id
-        LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id";
+        items.*, 
+        categories.category_name,
+        suppliers.supplier_name,
+        CASE 
+            WHEN items.quantity <= 0 THEN 1
+            WHEN items.quantity > 0 AND items.quantity <= items.min_stock THEN 2
+            ELSE 3
+        END as stock_priority
+    FROM items
+    LEFT JOIN categories ON items.category_id = categories.category_id
+    LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
+    WHERE items.is_deleted = 0";
 
         $params = [];
 
         if ($search !== '') {
-            $sql .= " WHERE items.item_name LIKE :search 
-                  OR items.barcode LIKE :search";
+            $sql .= " AND (items.item_name LIKE :search OR items.barcode LIKE :search)";
             $params[':search'] = '%' . $search . '%';
         }
 
         $sql .= " ORDER BY stock_priority ASC, items.item_name ASC 
-            LIMIT :offset, :perPage";
+              LIMIT :offset, :perPage";
 
         $stmt = $this->conn()->prepare($sql);
 
@@ -535,7 +876,8 @@ class Database
         $sql = "SELECT COUNT(*) as total FROM items
             LEFT JOIN categories ON items.category_id = categories.category_id
             LEFT JOIN suppliers ON items.supplier_id = suppliers.supplier_id
-            WHERE items.quantity > 0";
+            WHERE items.quantity > 0
+            AND items.is_deleted = 0";
 
         $params = [];
 
@@ -601,7 +943,7 @@ class Database
             $sql .= " AND items.selling_price > 5000";
         }
 
-        $sql .= " ORDER BY items.item_name ASC LIMIT :offset, :perPage";
+        $sql .= " ORDER BY items.created_at DESC LIMIT :offset, :perPage";
 
         $stmt = $this->conn()->prepare($sql);
 
@@ -911,6 +1253,7 @@ class Database
             po.grand_total,
             po.date,
             po.created_by,
+            u.username,
             s.supplier_name,
             GROUP_CONCAT(
                 JSON_OBJECT(
@@ -922,6 +1265,7 @@ class Database
             ) as items
         FROM purchase_orders po
         LEFT JOIN suppliers s ON po.supplier_id = s.supplier_id
+        LEFT JOIN users u ON po.created_by = u.user_id
         LEFT JOIN purchase_order_items poi ON po.purchase_order_id = poi.purchase_order_id
         LEFT JOIN items i ON poi.item_id = i.item_id
         WHERE po.is_deleted = 0";
@@ -995,11 +1339,18 @@ class Database
                 } else {
                     $previous_quantity = (int) $item['quantity'];
                     $new_quantity = $previous_quantity + $adjust_qty;
+
+                    // Validation: prevent stock from going below 0
+                    if ($new_quantity < 0) {
+                        $errors[] = "Adjustment invalid: stock cannot go below 0.";
+                    }
                 }
             }
 
             if (!empty($errors)) {
                 $_SESSION['adjust-error'] = implode("<br><br>", $errors);
+                header("Location: " . $_SERVER['REQUEST_URI']);
+                exit;
             } else {
                 try {
                     $conn->beginTransaction();
@@ -1018,7 +1369,7 @@ class Database
 
                     $conn->commit();
 
-                    $_SESSION['create-success'] = "Stock successfully adjusted.";
+                    $_SESSION['adjust-success'] = "Stock successfully adjusted.";
 
                     header("Location: " . $_SERVER['REQUEST_URI']);
                     exit;
@@ -1026,7 +1377,9 @@ class Database
                     if ($conn->inTransaction()) {
                         $conn->rollBack();
                     }
-                    $_SESSION['create-error'] = "Database error: " . $e->getMessage();
+                    $_SESSION['adjust-error'] = "Database error: " . $e->getMessage();
+                    header("Location: " . $_SERVER['REQUEST_URI']);
+                    exit;
                 }
             }
         }
@@ -1035,107 +1388,167 @@ class Database
     public function select_stock_adjustment()
     {
         $sql = $this->conn()->prepare("
-            SELECT 
-                isa.*, 
-                i.item_name,
-                u.username 
-            FROM 
-                item_stock_adjustment isa
-            JOIN 
-                items i ON isa.item_id = i.item_id
-            JOIN 
-                users u ON isa.adjust_by = u.user_id
-            ORDER BY isa.created_at DESC LIMIT 5
-        ");
+        SELECT 
+            isa.*, 
+            i.item_name,
+            u.username 
+        FROM 
+            item_stock_adjustment isa
+        JOIN 
+            items i ON isa.item_id = i.item_id AND i.is_deleted = 0
+        JOIN 
+            users u ON isa.adjust_by = u.user_id
+        ORDER BY isa.created_at DESC LIMIT 5
+    ");
 
         $sql->execute();
-        $stock_adjustment = $sql->fetchAll();
-
-        return $stock_adjustment;
+        return $sql->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function add_to_cart()
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $item_id = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
-            $pc_builder_id = filter_input(INPUT_POST, 'pc_builder_id', FILTER_SANITIZE_NUMBER_INT);
-            $quantity = filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT) ?? 1;
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
 
-            if ($quantity <= 0) {
-                $_SESSION['sale-error'] = "Invalid quantity.";
+        $item_id       = filter_input(INPUT_POST, 'item_id', FILTER_SANITIZE_NUMBER_INT);
+        $pc_builder_id = filter_input(INPUT_POST, 'pc_builder_id', FILTER_SANITIZE_NUMBER_INT);
+        $quantity      = (int) (filter_input(INPUT_POST, 'quantity', FILTER_SANITIZE_NUMBER_INT) ?? 1);
+
+        if ($quantity <= 0) {
+            $_SESSION['sale-error'] = "Invalid quantity.";
+            return;
+        }
+
+        if (!isset($_SESSION['cart'])) {
+            $_SESSION['cart'] = [];
+        }
+
+        // ── PC BUILDER ──
+        if ($pc_builder_id) {
+            $pcItems = $this->getPcBuilderItems($pc_builder_id);
+
+            if (empty($pcItems)) {
+                $_SESSION['sale-error'] = "PC Build not found or has no items.";
                 return;
             }
 
-            if (!isset($_SESSION['cart'])) {
-                $_SESSION['cart'] = [];
+            // Stock check per component
+            foreach ($pcItems as $component) {
+                if ($component['stock'] <= 0) {
+                    $_SESSION['sale-error'] = "Cannot add to cart. '{$component['item_name']}' is out of stock.";
+                    return;
+                }
+                if ($component['stock'] < $component['quantity']) {
+                    $_SESSION['sale-error'] = "Not enough stock for '{$component['item_name']}'. Only {$component['stock']} left.";
+                    return;
+                }
             }
 
-            // ✅ CASE 1: Add a PC Builder to cart
-            if ($pc_builder_id) {
-                $pc = $this->getPCBuilderById($pc_builder_id);
+            // Add each component as an individual cart item
+            foreach ($pcItems as $component) {
+                $cartKey = 'item_' . $component['item_id'];
 
-                if (!$pc) {
-                    $_SESSION['sale-error'] = "PC Builder not found.";
+                $currentQty     = isset($_SESSION['cart'][$cartKey]) ? $_SESSION['cart'][$cartKey]['quantity'] : 0;
+                $requestedTotal = $currentQty + $component['quantity'];
+
+                if ($requestedTotal > $component['stock']) {
+                    $_SESSION['sale-error'] = "Not enough stock for '{$component['item_name']}'. Only {$component['stock']} left.";
                     return;
                 }
 
-                $cartKey = 'pcb_' . $pc_builder_id;
-
                 if (isset($_SESSION['cart'][$cartKey])) {
-                    $_SESSION['cart'][$cartKey]['quantity'] += $quantity;
+                    $_SESSION['cart'][$cartKey]['quantity'] += $component['quantity'];
                 } else {
+                    $fetchFull = $this->conn()->prepare("SELECT description, image FROM items WHERE item_id = ?");
+                    $fetchFull->execute([$component['item_id']]);
+                    $fullItem = $fetchFull->fetch(PDO::FETCH_ASSOC);
+
+                    $livePrice  = (float) $component['selling_price'];  // i.selling_price
+                    $savedPrice = (float) $component['unit_price'];     // pbi.unit_price
+                    $hasCustom  = abs($savedPrice - $livePrice) > 0.001;
+
                     $_SESSION['cart'][$cartKey] = [
-                        'pc_builder_id' => $pc_builder_id,
-                        'name' => $pc['pc_builder_name'],
-                        'quantity' => $quantity,
-                        'unit_price' => $pc['total_price'],
-                        'line_total' => $pc['total_price'] * $quantity,
-                        'is_pc_builder' => true
+                        'item_id'           => $component['item_id'],
+                        'name'              => $component['item_name'],
+                        'description'       => $fullItem['description'] ?? '',
+                        'image'             => $fullItem['image'] ?? '',
+                        'quantity'          => $component['quantity'],
+                        'unit_price'        => $livePrice,
+                        'custom_unit_price' => $hasCustom ? $savedPrice : 0,
+                        'line_total'        => ($hasCustom ? $savedPrice : $livePrice) * $component['quantity'],
+                        'is_pc_builder'     => false
                     ];
                 }
 
-                // Recalculate line total
-                $_SESSION['cart'][$cartKey]['line_total'] =
-                    $_SESSION['cart'][$cartKey]['unit_price'] * $_SESSION['cart'][$cartKey]['quantity'];
+                // Recalculate line total using effective price
+                $effectivePrice = isset($_SESSION['cart'][$cartKey]['custom_unit_price']) && $_SESSION['cart'][$cartKey]['custom_unit_price'] > 0
+                    ? $_SESSION['cart'][$cartKey]['custom_unit_price']
+                    : $_SESSION['cart'][$cartKey]['unit_price'];
 
+                $_SESSION['cart'][$cartKey]['line_total'] =
+                    $effectivePrice * $_SESSION['cart'][$cartKey]['quantity'];
+            }
+
+            $_SESSION['sale-success'] = "PC Build components added to cart.";
+            return;
+        }
+
+        // ── REGULAR ITEM ──
+        if ($item_id) {
+            $stmt = $this->conn()->prepare("
+            SELECT 
+                item_id,
+                item_name,
+                description,
+                image,
+                selling_price,
+                quantity AS stock
+            FROM items
+            WHERE item_id = ? AND is_deleted = 0
+        ");
+            $stmt->execute([$item_id]);
+            $item = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$item) {
+                $_SESSION['sale-error'] = "Item not found.";
                 return;
             }
 
-            // ✅ CASE 2: Add a regular item to cart
-            if ($item_id) {
-                $stmt = $this->conn()->prepare("SELECT item_id, item_name, selling_price, quantity as stock FROM items WHERE item_id = ?");
-                $stmt->execute([$item_id]);
-                $item = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($item['stock'] <= 0) {
+                $_SESSION['sale-error'] = "'{$item['item_name']}' is out of stock.";
+                return;
+            }
 
-                if (!$item) {
-                    $_SESSION['sale-error'] = "Item not found.";
-                    return;
-                }
+            $cartKey        = 'item_' . $item_id;
+            $currentQty     = isset($_SESSION['cart'][$cartKey]) ? $_SESSION['cart'][$cartKey]['quantity'] : 0;
+            $requestedTotal = $currentQty + $quantity;
 
-                $cartKey = 'item_' . $item_id;
+            if ($requestedTotal > $item['stock']) {
+                $_SESSION['sale-error'] = "Not enough stock for '{$item['item_name']}'. Only {$item['stock']} left.";
+                return;
+            }
 
-                if (isset($_SESSION['cart'][$cartKey])) {
-                    $_SESSION['cart'][$cartKey]['quantity'] += $quantity;
-                } else {
-                    $_SESSION['cart'][$cartKey] = [
-                        'item_id' => $item_id,
-                        'name' => $item['item_name'],
-                        'quantity' => $quantity,
-                        'unit_price' => $item['selling_price'],
-                        'line_total' => $item['selling_price'] * $quantity,
-                        'is_pc_builder' => false
-                    ];
-                }
-
-                // Recalculate line total
-                $_SESSION['cart'][$cartKey]['line_total'] =
-                    $_SESSION['cart'][$cartKey]['unit_price'] * $_SESSION['cart'][$cartKey]['quantity'];
+            if (isset($_SESSION['cart'][$cartKey])) {
+                $_SESSION['cart'][$cartKey]['quantity'] += $quantity;
             } else {
-                $_SESSION['sale-error'] = "No item or PC Builder selected.";
+                $_SESSION['cart'][$cartKey] = [
+                    'item_id'       => $item_id,
+                    'name'          => $item['item_name'],
+                    'description'   => $item['description'],
+                    'image'         => $item['image'],
+                    'quantity'      => $quantity,
+                    'unit_price'    => $item['selling_price'],
+                    'line_total'    => $item['selling_price'] * $quantity,
+                    'is_pc_builder' => false
+                ];
             }
+
+            // Recalculate line total
+            $_SESSION['cart'][$cartKey]['line_total'] =
+                $_SESSION['cart'][$cartKey]['unit_price'] * $_SESSION['cart'][$cartKey]['quantity'];
+        } else {
+            $_SESSION['sale-error'] = "No item or PC Builder selected.";
         }
     }
-
 
     public function process_sale()
     {
@@ -1144,6 +1557,7 @@ class Database
             $cash_received = filter_input(INPUT_POST, 'cash_received', FILTER_VALIDATE_FLOAT);
             $customer_name = filter_input(INPUT_POST, 'customer', FILTER_SANITIZE_STRING);
             $payment_method = filter_input(INPUT_POST, 'payment_method', FILTER_SANITIZE_STRING);
+            $ref_number = filter_input(INPUT_POST, 'ref_number', FILTER_SANITIZE_STRING) ?: null;
             $user_id = $_SESSION['user_id'] ?? null;
 
             if (empty($cart)) {
@@ -1156,12 +1570,13 @@ class Database
                 return;
             }
 
-            // Compute totals
             $total = 0;
             foreach ($cart as $item) {
-                $total += $item['line_total'];
+                $effective = isset($item['custom_unit_price']) && $item['custom_unit_price'] > 0
+                    ? $item['custom_unit_price']
+                    : $item['unit_price'];
+                $total += $effective * $item['quantity'];
             }
-
             $grand_total = $total;
             $change = $cash_received - $grand_total;
 
@@ -1174,9 +1589,7 @@ class Database
                 $conn = $this->conn();
                 $conn->beginTransaction();
 
-                // ✅ Check stock availability before processing
                 foreach ($cart as $item) {
-                    // For PC Builder
                     if (isset($item['is_pc_builder']) && $item['is_pc_builder'] === true) {
                         $pc = $this->getPCBuilderById($item['pc_builder_id']);
 
@@ -1203,7 +1616,6 @@ class Database
                                 }
 
                                 if ($stock <= 0) {
-                                    // Fetch component name
                                     $getName = $conn->prepare("SELECT item_name FROM items WHERE item_id = ?");
                                     $getName->execute([$compId]);
                                     $componentName = $getName->fetchColumn();
@@ -1213,7 +1625,6 @@ class Database
                                     return;
                                 }
 
-
                                 if ($stock < $item['quantity']) {
                                     $_SESSION['sale-error'] = "Not enough stock for one or more PC Builder components.";
                                     $conn->rollBack();
@@ -1221,9 +1632,7 @@ class Database
                                 }
                             }
                         }
-                    }
-                    // For regular items
-                    else {
+                    } else {
                         $checkStock = $conn->prepare("SELECT quantity FROM items WHERE item_id = ?");
                         $checkStock->execute([$item['item_id']]);
                         $stock = $checkStock->fetchColumn();
@@ -1248,7 +1657,6 @@ class Database
                     }
                 }
 
-                // ✅ Generate unique transaction ID
                 $checkTransaction = $conn->prepare("SELECT COUNT(*) FROM sales WHERE transaction_id = ?");
                 $attempt = 0;
                 do {
@@ -1269,10 +1677,9 @@ class Database
                 date_default_timezone_set('Asia/Manila');
                 $philippineDateTime = date('Y-m-d H:i:s');
 
-                // ✅ Insert into `sales`
                 $stmt = $conn->prepare("
-                INSERT INTO sales (transaction_id, customer_name, grand_total, cash_received, cash_change, payment_method, date, sold_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO sales (transaction_id, customer_name, grand_total, cash_received, cash_change, payment_method, ref_number, date, sold_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
                 $stmt->execute([
                     $transaction_id,
@@ -1281,16 +1688,16 @@ class Database
                     $cash_received,
                     $change,
                     $payment_method,
+                    $ref_number,
                     $philippineDateTime,
                     $user_id
                 ]);
 
                 $sale_id = $conn->lastInsertId();
 
-                // ✅ Prepare statements
                 $itemStmt = $conn->prepare("
-                INSERT INTO sale_items (sale_id, item_id, quantity, unit_price, line_total, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO sale_items (sale_id, item_id, quantity, unit_price, custom_unit_price, line_total, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
                 $stockUpdate = $conn->prepare("
@@ -1302,25 +1709,20 @@ class Database
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
-                // ✅ Loop through cart
                 foreach ($cart as $item) {
-                    // CASE 1: PC Builder
                     if (isset($item['is_pc_builder']) && $item['is_pc_builder'] === true) {
-
-                        // Fetch PC Builder details including component IDs
                         $pc = $this->getPCBuilderById($item['pc_builder_id']);
 
                         $pcBuilderStmt->execute([
                             $sale_id,
                             $item['pc_builder_id'],
                             $item['name'],
-                            $item['unit_price'], // PC Builder total price per unit
+                            $item['unit_price'],
                             $item['quantity'],
                             $item['line_total'],
                             $philippineDateTime
                         ]);
 
-                        // ✅ Deduct stock for each PC component
                         $componentIds = [
                             $pc['cpu_id'] ?? null,
                             $pc['gpu_id'] ?? null,
@@ -1333,32 +1735,29 @@ class Database
 
                         foreach ($componentIds as $compId) {
                             if ($compId) {
-                                $stockUpdate->execute([
-                                    $item['quantity'],
-                                    $compId
-                                ]);
+                                $stockUpdate->execute([$item['quantity'], $compId]);
                             }
                         }
-                    }
-                    // CASE 2: Regular Item
-                    else {
+                    } else {
+                        $effectivePrice   = isset($item['custom_unit_price']) && $item['custom_unit_price'] > 0
+                            ? $item['custom_unit_price']
+                            : $item['unit_price'];
+                        $customUnitPrice  = $item['custom_unit_price'] ?? 0.00;
+
                         $itemStmt->execute([
                             $sale_id,
                             $item['item_id'],
                             $item['quantity'],
-                            $item['unit_price'],
-                            $item['line_total'],
+                            $item['unit_price'],          // always the original selling price
+                            $customUnitPrice,             // 0.00 if not overridden
+                            $effectivePrice * $item['quantity'], // actual charged line_total
                             $philippineDateTime
                         ]);
 
-                        $stockUpdate->execute([
-                            $item['quantity'],
-                            $item['item_id']
-                        ]);
+                        $stockUpdate->execute([$item['quantity'], $item['item_id']]);
                     }
                 }
 
-                // ✅ Commit transaction
                 $conn->commit();
                 unset($_SESSION['cart']);
 
@@ -1372,7 +1771,28 @@ class Database
         }
     }
 
+    public function set_custom_price()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
 
+        $cart_key         = filter_input(INPUT_POST, 'cart_key', FILTER_SANITIZE_STRING);
+        $custom_unit_price = filter_input(INPUT_POST, 'custom_unit_price', FILTER_VALIDATE_FLOAT);
+
+        if (!$cart_key || !isset($_SESSION['cart'][$cart_key])) {
+            $_SESSION['sale-error'] = "Item not found in cart.";
+            return;
+        }
+
+        if ($custom_unit_price === false || $custom_unit_price < 0) {
+            $_SESSION['sale-error'] = "Invalid custom price.";
+            return;
+        }
+
+        // Store custom price and recalculate line_total
+        $qty = $_SESSION['cart'][$cart_key]['quantity'];
+        $_SESSION['cart'][$cart_key]['custom_unit_price'] = $custom_unit_price;
+        $_SESSION['cart'][$cart_key]['line_total']        = $custom_unit_price * $qty;
+    }
 
     public function getTodaysSalesStats()
     {
@@ -1435,6 +1855,107 @@ class Database
                 'avg_transaction' => 0,
                 'growth_percent' => 0
             ];
+        }
+    }
+
+    public function getSalesChartData($period = 'week')
+    {
+        date_default_timezone_set('Asia/Manila');
+
+        try {
+            $conn = $this->conn();
+
+            if ($period === 'month') {
+                $startDate = date('Y-m-d', strtotime('-29 days')) . ' 00:00:00';
+                $endDate   = date('Y-m-d') . ' 23:59:59';
+                $format = '%Y-%m-%d';
+            } else {
+                $startDate = date('Y-m-d', strtotime('-6 days')) . ' 00:00:00';
+                $endDate   = date('Y-m-d') . ' 23:59:59';
+                $format = '%a';
+            }
+
+            $sql = "
+    SELECT 
+        DATE_FORMAT(`date`, '$format') as label,
+        SUM(grand_total) as revenue,
+        COUNT(sale_id) as transactions
+    FROM sales
+    WHERE `date` BETWEEN :startDate AND :endDate
+    AND is_deleted = 0
+    GROUP BY DATE(`date`)
+    ORDER BY MIN(`date`) ASC
+";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->execute([
+                ':startDate' => $startDate,
+                ':endDate'   => $endDate
+            ]);
+
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $indexed = [];
+            foreach ($results as $row) {
+                $indexed[$row['label']] = $row;
+            }
+
+            $labels = [];
+            $revenues = [];
+            $transactions = [];
+
+            $days = ($period === 'month') ? 29 : 6;
+
+            for ($i = $days; $i >= 0; $i--) {
+                $date = date('Y-m-d', strtotime("-$i days"));
+                $label = ($period === 'month') ? $date : date('D', strtotime($date));
+
+                $labels[]       = $label;
+                $revenues[]     = isset($indexed[$label]) ? (float) $indexed[$label]['revenue'] : 0.0;
+                $transactions[] = isset($indexed[$label]) ? (int)   $indexed[$label]['transactions'] : 0;
+            }
+
+            return [
+                'labels'       => $labels,
+                'revenues'     => $revenues,
+                'transactions' => $transactions
+            ];
+        } catch (PDOException $e) {
+            return [
+                'labels'       => [],
+                'revenues'     => [],
+                'transactions' => []
+            ];
+        }
+    }
+
+    public function getTopSellingItems($limit = 5)
+    {
+        try {
+            $conn = $this->conn();
+
+            $sql = "
+            SELECT 
+                i.item_name,
+                SUM(si.quantity) as total_sold,
+                SUM(si.line_total) as total_revenue
+            FROM sale_items si
+            JOIN items i ON si.item_id = i.item_id
+            JOIN sales s ON si.sale_id = s.sale_id
+            WHERE s.is_deleted = 0
+            AND i.is_deleted = 0
+            GROUP BY si.item_id, i.item_name
+            ORDER BY total_sold DESC
+            LIMIT :limit
+        ";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
         }
     }
 
@@ -1634,13 +2155,17 @@ class Database
     public function select_sales_paginated($offset, $perPage, $search = '')
     {
         $sql = "
-        SELECT 
-            sale_id, transaction_id, customer_name, grand_total, payment_method,
-            DATE_FORMAT(date, '%Y-%m-%d') as date,
-            DATE_FORMAT(date, '%H:%i:%s') as time
-        FROM sales
-        WHERE is_deleted = 0
-    ";
+    SELECT 
+        sale_id, 
+        transaction_id, 
+        customer_name, 
+        grand_total, 
+        payment_method,
+        DATE_FORMAT(date, '%Y-%m-%d') as date,
+        DATE_FORMAT(date, '%H:%i:%s') as time
+    FROM sales
+    WHERE is_deleted = 0
+";
         $params = [];
 
         if ($search !== '') {
@@ -1652,7 +2177,7 @@ class Database
             $params[':search'] = $like;
         }
 
-        $sql .= " ORDER BY date DESC LIMIT :offset, :perPage";
+        $sql .= " ORDER BY sales.date DESC LIMIT :offset, :perPage";
 
         $stmt = $this->conn()->prepare($sql);
 
@@ -1814,6 +2339,56 @@ class Database
         }
     }
 
+    public function decrease_cart_quantity()
+    {
+        $removeId = $_POST['remove_item_id'] ?? null;
+        if (!$removeId) return;
+
+        if (!isset($_SESSION['cart'][$removeId])) {
+            $_SESSION['sale-error'] = "Item not found in cart.";
+            return;
+        }
+
+        $_SESSION['cart'][$removeId]['quantity'] -= 1;
+
+        if ($_SESSION['cart'][$removeId]['quantity'] <= 0) {
+            unset($_SESSION['cart'][$removeId]);
+            $_SESSION['sale-success'] = "Item removed from cart.";
+            return;
+        }
+
+        // Use custom price if set
+        $effectivePrice = isset($_SESSION['cart'][$removeId]['custom_unit_price']) && $_SESSION['cart'][$removeId]['custom_unit_price'] > 0
+            ? $_SESSION['cart'][$removeId]['custom_unit_price']
+            : $_SESSION['cart'][$removeId]['unit_price'];
+
+        $_SESSION['cart'][$removeId]['line_total'] = $effectivePrice * $_SESSION['cart'][$removeId]['quantity'];
+
+        $_SESSION['sale-success'] = "Item quantity decreased.";
+    }
+
+    public function increase_cart_quantity()
+    {
+        $itemId = $_POST['increase_item_id'] ?? null;
+        if (!$itemId) return;
+
+        if (!isset($_SESSION['cart'][$itemId])) {
+            $_SESSION['sale-error'] = "Item not found in cart.";
+            return;
+        }
+
+        $_SESSION['cart'][$itemId]['quantity'] += 1;
+
+        // Use custom price if set
+        $effectivePrice = isset($_SESSION['cart'][$itemId]['custom_unit_price']) && $_SESSION['cart'][$itemId]['custom_unit_price'] > 0
+            ? $_SESSION['cart'][$itemId]['custom_unit_price']
+            : $_SESSION['cart'][$itemId]['unit_price'];
+
+        $_SESSION['cart'][$itemId]['line_total'] = $effectivePrice * $_SESSION['cart'][$itemId]['quantity'];
+
+        $_SESSION['sale-success'] = "Item quantity increased.";
+    }
+
 
     public function create_category()
     {
@@ -1902,7 +2477,106 @@ class Database
         exit;
     }
 
+    public function saveCartAsPcBuild()
+    {
 
+        $cart            = $_SESSION['cart'] ?? [];
+        $user_id         = $_SESSION['user_id'] ?? null;
+        $pc_builder_name = trim($_POST['pc_builder_name'] ?? '');
+        $override        = isset($_POST['override_build']) && $_POST['override_build'] === '1';
+
+        $errors = [];
+
+        if ($pc_builder_name === '') {
+            $errors[] = "Build name is required.";
+        } elseif (strlen($pc_builder_name) > 100) {
+            $errors[] = "Build name must be less than 100 characters.";
+        }
+
+        if (empty($cart)) {
+            $errors[] = "Cart is empty. Add items before saving a build.";
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['sale-error'] = implode("<br><br>", $errors);
+            return;
+        }
+
+        $pdo = $this->conn();
+
+        // Check for duplicate
+        $stmt = $pdo->prepare("SELECT pc_builder_id FROM pc_builders WHERE pc_builder_name = ? AND user_id = ? AND is_deleted = 0");
+        $stmt->execute([$pc_builder_name, $user_id]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Duplicate found and no override confirmation
+        if ($existing && !$override) {
+            $_SESSION['sale-duplicate'] = $pc_builder_name;
+            return;
+        }
+
+        date_default_timezone_set('Asia/Manila');
+        $createdAt = date('Y-m-d H:i:s');
+
+        try {
+            $pdo->beginTransaction();
+
+            if ($existing && $override) {
+                // Delete old items and update the existing build
+                $pc_builder_id = $existing['pc_builder_id'];
+
+                $pdo->prepare("DELETE FROM pc_builder_items WHERE pc_builder_id = ?")
+                    ->execute([$pc_builder_id]);
+
+                $pdo->prepare("UPDATE pc_builders SET created_at = ? WHERE pc_builder_id = ?")
+                    ->execute([$createdAt, $pc_builder_id]);
+            } else {
+                // Insert new build
+                $stmt = $pdo->prepare("
+                INSERT INTO pc_builders (pc_builder_name, user_id, created_at)
+                VALUES (?, ?, ?)
+            ");
+                $stmt->execute([$pc_builder_name, $user_id, $createdAt]);
+                $pc_builder_id = $pdo->lastInsertId();
+            }
+
+            // Insert cart items
+            $insertItem = $pdo->prepare("
+            INSERT INTO pc_builder_items (pc_builder_id, category_id, item_id, quantity, unit_price)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
+            foreach ($cart as $cartItem) {
+                if (!empty($cartItem['is_pc_builder'])) continue;
+
+                $fetchItem = $pdo->prepare("SELECT category_id FROM items WHERE item_id = ?");
+                $fetchItem->execute([$cartItem['item_id']]);
+                $itemData = $fetchItem->fetch(PDO::FETCH_ASSOC);
+
+                if (!$itemData) continue;
+
+                $effectivePrice = isset($cartItem['custom_unit_price']) && $cartItem['custom_unit_price'] > 0
+                    ? $cartItem['custom_unit_price']
+                    : $cartItem['unit_price'];
+
+                $insertItem->execute([
+                    $pc_builder_id,
+                    $itemData['category_id'],
+                    $cartItem['item_id'],
+                    $cartItem['quantity'],
+                    $effectivePrice
+                ]);
+            }
+
+            $pdo->commit();
+
+            $action = ($existing && $override) ? 'updated' : 'saved';
+            $_SESSION['sale-success'] = "PC Build '{$pc_builder_name}' {$action} successfully.";
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $_SESSION['sale-error'] = "Failed to save PC Build. Please try again.";
+        }
+    }
 
     public function update_category()
     {
@@ -2042,7 +2716,7 @@ class Database
 
     public function getItemsByCategoryId($categoryId)
     {
-        $sql = "SELECT item_id, item_name, selling_price
+        $sql = "SELECT item_id, item_name, selling_price, image
             FROM items
             WHERE category_id = ?";
 
@@ -2054,13 +2728,12 @@ class Database
 
     public function getTotalCategoriesCount($search = '')
     {
-        $sql = "SELECT COUNT(*) as total FROM categories";
+        $sql = "SELECT COUNT(*) as total FROM categories WHERE is_deleted = 0";
         $params = [];
 
         if ($search !== '') {
-            $sql .= " WHERE category_name LIKE :search";
-            $like = '%' . $search . '%';
-            $params[':search'] = $like;
+            $sql .= " AND category_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
         }
 
         $stmt = $this->conn()->prepare($sql);
@@ -2070,16 +2743,56 @@ class Database
 
     public function select_categories_paginated($offset, $perPage, $search = '')
     {
-        $sql = "SELECT * FROM categories";
+        $sql = "SELECT * FROM categories WHERE is_deleted = 0";
         $params = [];
 
         if ($search !== '') {
-            $sql .= " WHERE category_name LIKE :search";
+            $sql .= " AND category_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " ORDER BY created_at DESC LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getTotalStaffsCount($search = '')
+    {
+        $sql = "SELECT COUNT(*) as total FROM users WHERE role = 'staff'";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND username LIKE :search";  // note AND because we already have WHERE role
             $like = '%' . $search . '%';
             $params[':search'] = $like;
         }
 
-        $sql .= " ORDER BY category_name ASC LIMIT :offset, :perPage";
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function select_staffs_paginated($offset, $perPage, $search = '')
+    {
+        $sql = "SELECT * FROM users WHERE role != 'admin'";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND username LIKE :search";
+            $like = '%' . $search . '%';
+            $params[':search'] = $like;
+        }
+
+        $sql .= " ORDER BY created_at DESC LIMIT :offset, :perPage";
 
         $stmt = $this->conn()->prepare($sql);
 
@@ -2142,20 +2855,19 @@ class Database
             $categories = $this->getAllCategories();
 
             $insertItem = $pdo->prepare("
-    INSERT INTO pc_builder_items
-    (pc_builder_id, category_id, item_id, quantity)
-    VALUES (?, ?, ?, ?)
-");
+            INSERT INTO pc_builder_items
+            (pc_builder_id, category_id, item_id, quantity, unit_price)
+            VALUES (?, ?, ?, ?, ?)
+        ");
 
             foreach ($categories as $category) {
-                $catId = $category['category_id'];
+                $catId   = $category['category_id'];
                 $itemKey = 'category_' . $catId;
 
                 if (!empty($_POST[$itemKey])) {
                     $itemId = (int) $_POST[$itemKey];
 
                     $quantity = 1;
-
                     if (!empty($category['supports_quantity'])) {
                         $qtyKey = 'quantity_' . $catId;
                         if (!empty($_POST[$qtyKey]) && (int)$_POST[$qtyKey] > 0) {
@@ -2163,12 +2875,17 @@ class Database
                         }
                     }
 
+                    // Fetch selling_price to store as unit_price
+                    $priceStmt = $pdo->prepare("SELECT selling_price FROM items WHERE item_id = ?");
+                    $priceStmt->execute([$itemId]);
+                    $unitPrice = (float) ($priceStmt->fetchColumn() ?: 0);
 
                     $insertItem->execute([
                         $pc_builder_id,
                         $catId,
                         $itemId,
-                        $quantity
+                        $quantity,
+                        $unitPrice
                     ]);
                 }
             }
@@ -2187,6 +2904,25 @@ class Database
         }
     }
 
+    public function archiveQuotation()
+    {
+        if (isset($_POST['archive-quote-btn'])) {
+
+            $pcBuilderId = (int) ($_POST['pc_builder_id'] ?? 0);
+            $userId      = $_SESSION['user_id'] ?? null;
+
+            $stmt = $this->conn()->prepare("
+        UPDATE pc_builders 
+        SET is_deleted = 1 
+        WHERE pc_builder_id = ? AND user_id = ?
+    ");
+            $stmt->execute([$pcBuilderId, $userId]);
+            $_SESSION['create-success'] = "Quotation archived successfully.";
+            header("Location: " . $_SERVER['HTTP_REFERER']);
+            exit;
+        }
+    }
+
     public function getSaleDetails($saleId)
     {
         $sqlSale = "
@@ -2198,6 +2934,7 @@ class Database
             s.cash_received,
             s.cash_change,
             s.payment_method,
+            s.ref_number,
             s.date,
             u.username
         FROM sales s
@@ -2222,6 +2959,7 @@ class Database
             i.item_name,
             si.quantity,
             si.unit_price,
+            si.custom_unit_price,
             si.line_total
         FROM sale_items si
         INNER JOIN items i ON si.item_id = i.item_id
@@ -2291,13 +3029,14 @@ class Database
         SELECT 
             pbi.pc_builder_item_id,
             pbi.quantity,
+            pbi.unit_price,
             c.category_id,
             c.category_name,
             c.category_type,
             i.item_id,
             i.item_name,
             i.selling_price,
-            (i.selling_price * pbi.quantity) as line_total
+            (pbi.unit_price * pbi.quantity) as line_total
         FROM pc_builder_items pbi
         INNER JOIN categories c ON pbi.category_id = c.category_id
         INNER JOIN items i ON pbi.item_id = i.item_id
@@ -2315,7 +3054,7 @@ class Database
         }
 
         // Group items by category type
-        $pcParts = [];
+        $pcParts     = [];
         $accessories = [];
 
         foreach ($items as $item) {
@@ -2327,10 +3066,10 @@ class Database
         }
 
         return [
-            'builder' => $builder,
-            'pc_parts' => $pcParts,
+            'builder'     => $builder,
+            'pc_parts'    => $pcParts,
             'accessories' => $accessories,
-            'items' => $items,
+            'items'       => $items,
             'grand_total' => $grandTotal
         ];
     }
@@ -2424,10 +3163,14 @@ class Database
 
     public function getPcBuildersPaginated($search = '', $offset = 0, $limit = 5)
     {
-        $sql = "SELECT pb.*, u.username AS created_by
+        $sql = "SELECT pb.*, 
+                u.username AS created_by,
+                COUNT(pbi.pc_builder_item_id) AS item_count,
+                SUM(pbi.unit_price * pbi.quantity) AS total_price
             FROM pc_builders pb
             LEFT JOIN users u ON u.user_id = pb.user_id
-            WHERE 1=1";
+            LEFT JOIN pc_builder_items pbi ON pb.pc_builder_id = pbi.pc_builder_id
+            WHERE pb.is_deleted = 0";
         $params = [];
 
         if ($search !== '') {
@@ -2435,7 +3178,7 @@ class Database
             $params[':search'] = '%' . $search . '%';
         }
 
-        $sql .= " ORDER BY pb.created_at DESC LIMIT :offset, :limit";
+        $sql .= " GROUP BY pb.pc_builder_id ORDER BY pb.created_at DESC LIMIT :offset, :limit";
 
         $stmt = $this->conn()->prepare($sql);
 
@@ -2460,6 +3203,540 @@ class Database
     ");
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function getTotalPcBuildersCountPOS($search = '')
+    {
+        $sql = "SELECT COUNT(*) FROM pc_builders WHERE is_deleted = 0";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND pc_builder_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function getPcBuildersPOSPaginated($offset, $perPage, $search = '')
+    {
+        $sql = "SELECT pb.*,
+            u.username,
+            COUNT(pbi.pc_builder_item_id) AS item_count,
+            SUM(pbi.unit_price * pbi.quantity) AS total_price
+        FROM pc_builders pb
+        LEFT JOIN users u ON pb.user_id = u.user_id
+        LEFT JOIN pc_builder_items pbi ON pb.pc_builder_id = pbi.pc_builder_id
+        WHERE pb.is_deleted = 0";
+
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND pb.pc_builder_name LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " GROUP BY pb.pc_builder_id ORDER BY pb.created_at DESC LIMIT :offset, :perPage";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':perPage', $perPage, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getPcBuilderItems($pc_builder_id)
+    {
+        $stmt = $this->conn()->prepare("
+        SELECT 
+            pbi.*,
+            i.item_name,
+            i.selling_price,
+            i.quantity AS stock,
+            i.min_stock,
+            c.category_name
+        FROM pc_builder_items pbi
+        JOIN items i ON pbi.item_id = i.item_id
+        JOIN categories c ON pbi.category_id = c.category_id
+        WHERE pbi.pc_builder_id = ?
+    ");
+        $stmt->execute([$pc_builder_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function createRma()
+    {
+        if (!isset($_POST['rma-submit-btn'])) return;
+
+        $customerName = trim($_POST['customer_name'] ?? '');
+        $saleId       = !empty($_POST['sale_id']) ? (int) $_POST['sale_id'] : null;
+        $condition    = trim($_POST['condition'] ?? 'Defective');
+        $status       = trim($_POST['status'] ?? 'Pending');
+        $reason       = trim($_POST['reason'] ?? '');
+        $userId       = $_SESSION['user_id'] ?? null;
+        $itemIds      = $_POST['item_id'] ?? [];
+        $quantities   = $_POST['quantity'] ?? [];
+
+        $errors = [];
+
+        if ($customerName === '') $errors[] = "Customer name is required.";
+        if ($reason === '')       $errors[] = "Reason is required.";
+        if (empty($itemIds))      $errors[] = "At least one item is required.";
+        if (!$saleId) $errors[] = "Please select a related transaction.";
+
+        // Validate each item row
+        foreach ($itemIds as $index => $itemId) {
+            if (empty($itemId)) {
+                $errors[] = "Please select an item for row " . ($index + 1) . ".";
+            }
+            $qty = (int) ($quantities[$index] ?? 0);
+            if ($qty <= 0) {
+                $errors[] = "Invalid quantity for row " . ($index + 1) . ".";
+            }
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['rma-error'] = implode("<br>", $errors);
+            return;
+        }
+
+        $pdo = $this->conn();
+
+        // Generate unique RMA number
+        $checkRma = $pdo->prepare("SELECT COUNT(*) FROM rma WHERE rma_number = ?");
+        $attempt  = 0;
+        do {
+            $randomSuffix = rand(1000, 9999);
+            $year         = date('y');
+            $month        = date('m');
+            $rmaNumber    = "RMA-{$year}{$month}-{$randomSuffix}";
+            $checkRma->execute([$rmaNumber]);
+            $exists  = $checkRma->fetchColumn() > 0;
+            $attempt++;
+        } while ($exists && $attempt < 10);
+
+        if ($attempt >= 10) {
+            $_SESSION['rma-error'] = "Failed to generate a unique RMA number.";
+            return;
+        }
+
+        date_default_timezone_set('Asia/Manila');
+        $date = date('Y-m-d H:i:s');
+
+        try {
+            $pdo->beginTransaction();
+
+            // Insert RMA header
+            $stmt = $pdo->prepare("
+            INSERT INTO rma
+                (rma_number, sale_id, customer_name, `condition`, `status`, reason, `date`, created_by)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+            $stmt->execute([
+                $rmaNumber,
+                $saleId,
+                $customerName,
+                $condition,
+                $status,
+                $reason,
+                $date,
+                $userId
+            ]);
+
+            $rmaId = $pdo->lastInsertId();
+
+            // Insert RMA items
+            $itemStmt = $pdo->prepare("
+            INSERT INTO rma_items (rma_id, item_id, quantity)
+            VALUES (?, ?, ?)
+        ");
+
+            foreach ($itemIds as $index => $itemId) {
+                $itemId  = (int) $itemId;
+                $qty     = (int) ($quantities[$index] ?? 1);
+                $itemStmt->execute([$rmaId, $itemId, $qty]);
+            }
+
+            $pdo->commit();
+
+            $_SESSION['rma-success'] = "RMA {$rmaNumber} created successfully.";
+            header("Location: " . $_SERVER['HTTP_REFERER']);
+            exit;
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $_SESSION['rma-error'] = "Failed to create RMA: " . $e->getMessage();
+        }
+    }
+
+    public function getRmaCount($search = '')
+    {
+        $sql    = "SELECT COUNT(*) FROM rma WHERE is_deleted = 0";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND (rma_number LIKE :search OR customer_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function getRmaPaginated($search = '', $offset = 0, $limit = 10)
+    {
+        $sql = "
+        SELECT
+            r.*,
+            u.username AS created_by,
+            COUNT(ri.rma_item_id) AS item_count,
+            GROUP_CONCAT(i.item_name SEPARATOR ', ') AS item_names
+        FROM rma r
+        LEFT JOIN users u ON r.created_by = u.user_id
+        LEFT JOIN rma_items ri ON r.rma_id = ri.rma_id
+        LEFT JOIN items i ON ri.item_id = i.item_id
+        WHERE r.is_deleted = 0
+    ";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND (r.rma_number LIKE :search OR r.customer_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " GROUP BY r.rma_id ORDER BY r.date DESC LIMIT :offset, :limit";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getSalesForRma()
+    {
+        $stmt = $this->conn()->prepare("
+        SELECT 
+            sale_id,
+            transaction_id,
+            customer_name,
+            date
+        FROM sales
+        WHERE is_deleted = 0
+        ORDER BY date DESC
+        LIMIT 100
+    ");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getAllActiveItems()
+    {
+        $stmt = $this->conn()->prepare("
+        SELECT 
+            i.item_id,
+            i.item_name,
+            i.category_id,
+            c.category_name
+        FROM items i
+        LEFT JOIN categories c ON i.category_id = c.category_id
+        WHERE i.is_deleted = 0
+        ORDER BY c.category_name ASC, i.item_name ASC
+    ");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getRmaDetails($rmaId)
+    {
+        $pdo = $this->conn();
+
+        // Get RMA header
+        $stmt = $pdo->prepare("
+        SELECT
+            r.*,
+            u.username AS created_by
+        FROM rma r
+        LEFT JOIN users u ON r.created_by = u.user_id
+        WHERE r.rma_id = ? AND r.is_deleted = 0
+        LIMIT 1
+    ");
+        $stmt->execute([$rmaId]);
+        $rma = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$rma) return null;
+
+        // Get RMA items
+        $itemStmt = $pdo->prepare("
+        SELECT
+            ri.rma_item_id,
+            ri.quantity,
+            i.item_id,
+            i.item_name,
+            i.selling_price
+        FROM rma_items ri
+        INNER JOIN items i ON ri.item_id = i.item_id
+        WHERE ri.rma_id = ?
+        ORDER BY ri.rma_item_id ASC
+    ");
+        $itemStmt->execute([$rmaId]);
+        $items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'rma'   => $rma,
+            'items' => $items
+        ];
+    }
+
+    public function updateRma()
+    {
+        if (!isset($_POST['edit-rma-btn'])) return;
+
+        $rmaId        = (int) ($_POST['rma_id'] ?? 0);
+        $customerName = trim($_POST['customer_name'] ?? '');
+        $saleId       = !empty($_POST['sale_id']) ? (int) $_POST['sale_id'] : null;
+        $condition    = trim($_POST['condition'] ?? 'Defective');
+        $status       = trim($_POST['status'] ?? 'Pending');
+        $reason       = trim($_POST['reason'] ?? '');
+
+        $errors = [];
+
+        if ($rmaId <= 0)           $errors[] = "Invalid RMA.";
+        if ($customerName === '')  $errors[] = "Customer name is required.";
+        if (!$saleId)             $errors[] = "Please select a related transaction.";
+        if ($reason === '')        $errors[] = "Reason is required.";
+
+        if (!empty($errors)) {
+            $_SESSION['rma-error'] = implode("<br>", $errors);
+            return;
+        }
+
+        $stmt = $this->conn()->prepare("
+        UPDATE rma
+        SET 
+            customer_name = ?,
+            sale_id       = ?,
+            `condition`   = ?,
+            `status`      = ?,
+            reason        = ?
+        WHERE rma_id = ? AND is_deleted = 0
+    ");
+        $stmt->execute([
+            $customerName,
+            $saleId,
+            $condition,
+            $status,
+            $reason,
+            $rmaId
+        ]);
+
+        $_SESSION['rma-success'] = "RMA updated successfully.";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit;
+    }
+
+    public function register_admin()
+    {
+        if (!isset($_POST['register_admin'])) return;
+
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role     = 'admin';
+
+        $errors = [];
+
+        if ($username === '')       $errors[] = "Username is required.";
+        if (strlen($username) > 50) $errors[] = "Username must be under 50 characters.";
+        if ($password === '')       $errors[] = "Password is required.";
+        if (strlen($password) < 6)  $errors[] = "Password must be at least 6 characters.";
+
+        if (!empty($errors)) {
+            $_SESSION['register-admin-error'] = implode("<br>", $errors);
+            return;
+        }
+
+        $pdo = $this->conn();
+
+        // Check duplicate username
+        $stmt = $pdo->prepare("SELECT 1 FROM users WHERE username = ?");
+        $stmt->execute([$username]);
+        if ($stmt->fetch()) {
+            $_SESSION['register-admin-error'] = "Username already exists.";
+            return;
+        }
+
+        $hashed = password_hash($password, PASSWORD_DEFAULT);
+
+        $stmt = $pdo->prepare("
+        INSERT INTO users (username, password, role, is_active)
+        VALUES (?, ?, ?, 1)
+    ");
+        $stmt->execute([$username, $hashed, $role]);
+
+        $_SESSION['register-admin-success'] = "Admin '{$username}' added successfully.";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit;
+    }
+
+    public function update_admin()
+    {
+        if (!isset($_POST['update_admin'])) return;
+
+        $userId   = (int) ($_POST['user_id'] ?? 0);
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        $errors = [];
+
+        if ($userId <= 0)           $errors[] = "Invalid admin.";
+        if ($username === '')       $errors[] = "Username is required.";
+        if (strlen($username) > 50) $errors[] = "Username must be under 50 characters.";
+        if ($password !== '' && strlen($password) < 6) {
+            $errors[] = "Password must be at least 6 characters.";
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['register-admin-error'] = implode("<br>", $errors);
+            return;
+        }
+
+        $pdo = $this->conn();
+
+        // Check duplicate username excluding current user
+        $stmt = $pdo->prepare("SELECT 1 FROM users WHERE username = ? AND user_id != ?");
+        $stmt->execute([$username, $userId]);
+        if ($stmt->fetch()) {
+            $_SESSION['register-admin-error'] = "Username already taken.";
+            return;
+        }
+
+        if ($password !== '') {
+            $hashed = password_hash($password, PASSWORD_DEFAULT);
+            $stmt   = $pdo->prepare("UPDATE users SET username = ?, password = ? WHERE user_id = ? AND role = 'admin'");
+            $stmt->execute([$username, $hashed, $userId]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE users SET username = ? WHERE user_id = ? AND role = 'admin'");
+            $stmt->execute([$username, $userId]);
+        }
+
+        $_SESSION['register-admin-success'] = "Admin '{$username}' updated successfully.";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit;
+    }
+
+    public function deactivate_admin()
+    {
+        if (!isset($_POST['deactivate_admin'])) return;
+
+        $userId = (int) ($_POST['user_id'] ?? 0);
+
+        if ($userId <= 0) {
+            $_SESSION['register-admin-error'] = "Invalid admin.";
+            return;
+        }
+
+        $stmt = $this->conn()->prepare("
+        UPDATE users SET is_active = 0 WHERE user_id = ? AND role = 'admin'
+    ");
+        $stmt->execute([$userId]);
+
+        $_SESSION['register-admin-success'] = "Admin deactivated successfully.";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit;
+    }
+
+    public function activate_admin()
+    {
+        if (!isset($_POST['activate_admin'])) return;
+
+        $userId = (int) ($_POST['user_id'] ?? 0);
+
+        if ($userId <= 0) {
+            $_SESSION['register-admin-error'] = "Invalid admin.";
+            return;
+        }
+
+        $stmt = $this->conn()->prepare("
+        UPDATE users SET is_active = 1 WHERE user_id = ? AND role = 'admin'
+    ");
+        $stmt->execute([$userId]);
+
+        $_SESSION['register-admin-success'] = "Admin activated successfully.";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit;
+    }
+
+    public function getTotalAdminsCount($search = '')
+    {
+        $sql    = "SELECT COUNT(*) FROM users WHERE role = 'admin'";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND username LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->conn()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function select_admins_paginated($offset = 0, $limit = 5, $search = '')
+    {
+        $sql    = "SELECT user_id, username, role, is_active FROM users WHERE role = 'admin'";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND username LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " ORDER BY username ASC LIMIT :offset, :limit";
+
+        $stmt = $this->conn()->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function delete_admin()
+    {
+        if (!isset($_POST['delete_admin'])) return;
+
+        $userId = (int) ($_POST['user_id'] ?? 0);
+
+        if ($userId <= 0) {
+            $_SESSION['register-admin-error'] = "Invalid admin.";
+            return;
+        }
+
+        $stmt = $this->conn()->prepare("
+        DELETE FROM users WHERE user_id = ? AND role = 'admin'
+    ");
+        $stmt->execute([$userId]);
+
+        $_SESSION['register-admin-success'] = "Admin deleted permanently.";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit;
     }
 }
 $database = new Database();

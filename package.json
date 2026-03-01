@@ -1,0 +1,24 @@
+{
+  "name": "systempos",
+  "version": "1.0.0",
+  "description": "Needed to install:\r composer require setasign/fpdf\r composer require mpdf/mpdf",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jerecho2002/systemPOS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Jerecho2002/systemPOS/issues"
+  },
+  "homepage": "https://github.com/Jerecho2002/systemPOS#readme",
+  "dependencies": {
+    "jquery": "^4.0.0"
+  }
+}

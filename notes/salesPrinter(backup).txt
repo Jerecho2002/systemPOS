@@ -1,0 +1,50 @@
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const previewButtons = document.querySelectorAll('.preview-sale-btn');
+
+            // Detect mobile device
+            const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+
+            previewButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+
+                    const saleId = this.getAttribute('data-id');
+
+                    if (!saleId) {
+                        alert('Invalid sale ID');
+                        return;
+                    }
+
+                    if (isMobile) {
+                        // On mobile, just open the PDF directly in a new tab
+                        window.open(`print_sales_receipt.php?id=${saleId}`, '_blank');
+                        return;
+                    }
+
+                    // Desktop: use Print.js
+                    fetch(`print_sales_receipt.php?id=${saleId}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Failed to fetch receipt');
+                            return response.blob();
+                        })
+                        .then(blob => {
+                            const reader = new FileReader();
+                            reader.onloadend = function() {
+                                const base64 = reader.result.split(',')[1];
+                                printJS({
+                                    printable: base64,
+                                    type: 'pdf',
+                                    base64: true
+                                });
+                            };
+                            reader.readAsDataURL(blob);
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            alert('Could not load receipt. Please try again.');
+                        });
+                });
+            });
+        });
+    </script>

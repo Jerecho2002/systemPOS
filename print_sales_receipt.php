@@ -1,189 +1,207 @@
 <?php
-ob_start(); // Prevent headers already sent
-
 require_once 'database/database.php';
-require_once 'vendor/autoload.php'; // FPDF via Composer
+require_once 'vendor/autoload.php'; // mPDF
 
-// Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+  session_start();
 }
 
 if (!isset($_GET['id']) || !isset($_SESSION['user_id'])) {
-    die('Invalid request');
+  die('Invalid request');
 }
 
 $saleId = $_GET['id'];
 $database = new Database();
-
-// Fetch sale details with items
 $data = $database->getSaleDetails($saleId);
 
 if (!$data) {
-    die('Sale not found.');
+  die('Sale not found.');
 }
 
-// Use correct variables from $data array
 $sale = $data['sale'];
 $items = $data['items'];
 
-// Calculate dynamic height - increased footer space
-$itemsHeight = count($items) * 8; // 8mm per item
-$pageHeight = 40 + $itemsHeight + 35 + 40; // Increased footer from 25 to 30
+$referenceRow = '';
 
-// Extend FPDF for 80mm thermal receipt
-class ReceiptPDF extends FPDF
-{
-    public $w = 76; // Full 76mm usable width (80mm with 2mm margins each side)
+$refNumber = isset($sale['ref_number'])
+  ? trim($sale['ref_number'])
+  : '';
 
-    function Header()
-    {
-        // Store Name
-        $this->SetFont('Courier', 'B', 13);
-        $this->Cell($this->w, 5, "HANGING PARROT", 0, 1, 'C');
-        $this->SetFont('Courier', '', 11);
-        $this->Cell($this->w, 4, "Digital Solutions", 0, 1, 'C');
-        $this->Ln(1);
-
-        // Store Details
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "Ground Floor, ESC Building", 0, 1, 'C');
-        $this->Cell($this->w, 3, "Corner Sanciangko ", 0, 1, 'C');
-        $this->Cell($this->w, 3, "and Janquera St., Cebu City", 0, 1, 'C');
-        $this->Cell($this->w, 3, "(032) 479-8933 / 0919-95555666", 0, 1, 'C');
-        $this->Ln(2);
-
-        // Separator - dashed line like thermal printers
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "- - - - - - - - - - - - - - - - - - - - - - - - -", 0, 1, 'C');
-        $this->Ln(1);
-    }
-
-
-
-    function ReceiptBody($sale, $items)
-    {
-        // Receipt title
-        $this->SetFont('Courier', 'B', 11);
-        $this->Cell($this->w, 5, "SALES RECEIPT", 0, 1, 'C');
-        $this->Ln(1);
-
-        // Transaction info
-        $this->SetFont('Courier', '', 9);
-        $this->Cell(24, 3.5, "Receipt No:", 0, 0);
-        $this->SetFont('Courier', 'B', 9);
-        $this->Cell(52, 3.5, $sale['transaction_id'], 0, 1);
-
-        $this->SetFont('Courier', '', 9);
-        $this->Cell(24, 3.5, "Date:", 0, 0);
-        $this->Cell(52, 3.5, date('M d, Y h:i A', strtotime($sale['date'] ?? 'now')), 0, 1);
-
-        $this->Cell(24, 3.5, "Customer:", 0, 0);
-        $this->Cell(52, 3.5, $sale['customer_name'], 0, 1);
-
-        $this->Cell(24, 3.5, "Cashier:", 0, 0);
-        $this->Cell(52, 3.5, $sale['username'], 0, 1);
-
-        $this->Ln(1);
-
-        // Items separator
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "- - - - - - - - - - - - - - - - - - - - - - - - -", 0, 1, 'C');
-        $this->Ln(0.5);
-
-        // Items - Simple list
-        foreach ($items as $item) {
-            $name = $item['item_name'];
-            $qty = $item['quantity'];
-            $unitPrice = $item['unit_price'];
-
-            // Item name on its own line
-            $this->SetFont('Courier', 'B', 9);
-            $this->Cell($this->w, 4, $name, 0, 1, 'L');
-
-            // Qty x Price on second line
-            $this->SetFont('Courier', '', 8);
-            $priceInfo = $qty . " x PHP " . number_format($unitPrice, 2);
-            $this->Cell($this->w, 3.5, $priceInfo, 0, 1, 'L');
-
-            $this->Ln(0.5);
-        }
-
-        $this->Ln(2);
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "- - - - - - - - - - - - - - - - - - - - - - - - -", 0, 1, 'C');
-        $this->Ln(1);
-
-        // VAT Calculation (12%)
-        $vatRate = 0.12;
-        $vatAmount = $sale['grand_total'] * $vatRate;
-        $netOfVat = $sale['grand_total'] - $vatAmount;
-
-        // VAT Breakdown
-        $this->SetFont('Courier', '', 9);
-        $this->Cell(46, 4, "VAT (12%):", 0, 0, 'R');
-        $this->Cell(30, 4, "PHP " . number_format($vatAmount, 2), 0, 1, 'R');
-
-        $this->Cell(46, 4, "Net of VAT:", 0, 0, 'R');
-        $this->Cell(30, 4, "PHP " . number_format($netOfVat, 2), 0, 1, 'R');
-
-        $this->Ln(1);
-
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "- - - - - - - - - - - - - - - - - - - - - - - - -", 0, 1, 'C');
-        $this->Ln(1);
-
-        // Total Amount
-        $this->SetFont('Courier', 'B', 11);
-        $this->Cell(46, 5, "Total:", 0, 0, 'R');
-        $this->Cell(30, 5, "PHP " . number_format($sale['grand_total'], 2), 0, 1, 'R');
-        $this->Ln(1);
-
-        // Payment method
-        $this->SetFont('Courier', '', 9);
-        $this->Cell(46, 3.5, "Payment:", 0, 0, 'R');
-        $this->Cell(30, 3.5, strtoupper($sale['payment_method']), 0, 1, 'R');
-
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "- - - - - - - - - - - - - - - - - - - - - - - - -", 0, 1, 'C');
-        $this->Ln(1);
-
-        // Cash & Change
-        $this->SetFont('Courier', '', 10);
-        $this->Cell(46, 4, "Cash Received:", 0, 0, 'R');
-        $this->Cell(30, 4, "PHP " . number_format($sale['cash_received'], 2), 0, 1, 'R');
-
-        $this->SetFont('Courier', 'B', 10);
-        $this->Cell(46, 5, "Change:", 0, 0, 'R');
-        $this->Cell(30, 5, "PHP " . number_format($sale['cash_change'], 2), 0, 1, 'R');
-    }
-
-    function Footer()
-    {
-        // Move to 20mm from bottom
-        $this->SetY(-15);
-
-        // Separator
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 3, "- - - - - - - - - - - - - - - - - - - - - - - - -", 0, 1, 'C');
-        $this->Ln(1);
-
-        // Footer Text
-        $this->SetFont('Courier', 'B', 9);
-        $this->Cell($this->w, 4, "THANK YOU!", 0, 1, 'C');
-
-        $this->SetFont('Courier', '', 8);
-        $this->Cell($this->w, 4, "Please come again", 0, 1, 'C');
-    }
+if ($refNumber !== '') {
+  $referenceRow = '
+    <tr>
+      <td>Reference No:</td>
+      <td>' . htmlspecialchars($refNumber) . '</td>
+    </tr>';
 }
 
-// Create PDF with dynamic height
-$pdf = new ReceiptPDF('P', 'mm', [80, $pageHeight]);
-$pdf->SetMargins(2, 4, 2); // Minimal side margins
-$pdf->SetAutoPageBreak(true);
-$pdf->AddPage();
-$pdf->ReceiptBody($sale, $items);
+// Start HTML content for mPDF
+$html = '
+<html>
+<head>
+<style>
+body {
+    font-family: Courier, monospace;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    width: 76mm;
+    padding: 2mm;
+}
+.center {
+    text-align: center;
+}
+.dashed {
+    border-bottom: 1px dashed #000;
+    margin: 2px 0;
+}
+.header-title {
+    font-size: 13pt;
+    font-weight: bold;
+}
+.header-subtitle {
+    font-size: 11pt;
+}
+.store-info {
+    font-size: 8pt;
+}
+.receipt-title {
+    font-size: 11pt;
+    font-weight: bold;
+}
+.item-name {
+    font-size: 9pt;
+    font-weight: bold;
+}
+.item-info {
+    font-size: 8pt;
+}
+.total-label {
+    text-align: right;
+    font-size: 9pt;
+}
+.total-value {
+    text-align: right;
+    font-size: 9pt;
+    font-weight: bold;
+}
+.footer {
+    margin-top: 5px;
+    text-align: center;
+    font-size: 8pt;
+}
+</style>
+</head>
+<body>
+<div class="container">
 
-// Clean buffer and output
-ob_end_clean();
-$pdf->Output('I', 'Receipt_' . $sale['transaction_id'] . '.pdf');
+  <!-- Header -->
+  <div class="center header-title">HANGING PARROT</div>
+  <div class="center header-subtitle">Digital Solutions</div>
+  <div class="center store-info">
+    Ground Floor, ESC Building<br>
+    Corner Sanciangko & Janquera St., Cebu City<br>
+    (032) 479-8933 / 0919-95555666
+  </div>
+  <div class="dashed"></div>
+
+  <!-- Receipt Title -->
+  <div class="center receipt-title">SALES RECEIPT</div>
+  <div class="dashed"></div>
+
+  <!-- Transaction Info -->
+  <table width="100%">
+    <tr>
+      <td>Receipt No:</td>
+      <td>' . $sale['transaction_id'] . '</td>
+    </tr>
+    <tr>
+      <td>Date:</td>
+      <td>' . date('M d, Y h:i A', strtotime($sale['date'] ?? 'now')) . '</td>
+    </tr>
+    <tr>
+      <td>Customer:</td>
+      <td>' . $sale['customer_name'] . '</td>
+    </tr>
+    <tr>
+      <td>Cashier:</td>
+      <td>' . $sale['username'] . '</td>
+    </tr>
+      ' . $referenceRow . '
+  </table>
+  <div class="dashed"></div>
+
+  <!-- Items -->
+';
+
+foreach ($items as $item) {
+  $hasCustom     = isset($item['custom_unit_price']) && $item['custom_unit_price'] > 0;
+  $displayPrice  = $hasCustom ? $item['custom_unit_price'] : $item['unit_price'];
+
+  $html .= '
+        <div class="item-name">' . htmlspecialchars($item['item_name']) . '</div>
+        <div class="item-info">' . $item['quantity'] . ' x PHP ' . number_format($displayPrice, 2);
+
+  if ($hasCustom) {
+    $html .= ' <span style="text-decoration:line-through; color:#999; font-size:10px;">PHP ' . number_format($item['unit_price'], 2) . '</span>';
+  }
+
+  $html .= '</div>';
+}
+
+$html .= '<div class="dashed"></div>';
+
+// VAT Calculation
+$vatRate = 0.12;
+$vatAmount = $sale['grand_total'] * $vatRate;
+
+$html .= '
+<table width="100%">
+  <tr>
+    <td class="total-label">VAT:</td>
+    <td class="total-value">PHP ' . number_format($vatAmount, 2) . '</td>
+  </tr>
+  <tr>
+    <td class="total-label">Total:</td>
+    <td class="total-value">PHP ' . number_format($sale['grand_total'], 2) . '</td>
+  </tr>
+  <tr>
+    <td class="total-label">Payment:</td>
+    <td class="total-value">' . strtoupper($sale['payment_method']) . '</td>
+  </tr>
+  <tr>
+    <td class="total-label">Cash Received:</td>
+    <td class="total-value">PHP ' . number_format($sale['cash_received'], 2) . '</td>
+  </tr>
+  <tr>
+    <td class="total-label">Change:</td>
+    <td class="total-value">PHP ' . number_format($sale['cash_change'], 2) . '</td>
+  </tr>
+</table>
+
+<div class="dashed"></div>
+
+<!-- Footer -->
+<div class="footer">
+  THANK YOU!<br>
+  Please come again
+</div>
+
+</div>
+</body>
+</html>
+';
+
+// Create mPDF
+$mpdf = new \Mpdf\Mpdf([
+  'mode' => 'utf-8',
+  'format' => [80, 200 + (count($items) * 8)], // 80mm wide, dynamic height
+  'margin_left' => 2,
+  'margin_right' => 2,
+  'margin_top' => 4,
+  'margin_bottom' => 4,
+]);
+
+$mpdf->WriteHTML($html);
+$mpdf->Output('Receipt_' . $sale['transaction_id'] . '.pdf', 'I');

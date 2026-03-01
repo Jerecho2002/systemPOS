@@ -114,6 +114,18 @@ class Database
                 'date' => 'Date'
             ]
         ],
+        'pc_builders' => [
+            'table'          => 'pc_builders',
+            'primary'        => 'pc_builder_id',
+            'search_column'  => 'pc_builder_name',
+            'label'          => 'Quotations',
+            'display_columns' => [
+                'pc_builder_name' => 'Quotation Name',
+                'username'        => 'Created By',
+            ],
+            'join' => "LEFT JOIN users u ON pb.user_id = u.user_id",
+            'alias' => 'pb',
+        ],
     ];
 
     public function getTableConfig(string $type): ?array

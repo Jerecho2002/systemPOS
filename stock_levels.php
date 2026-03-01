@@ -17,21 +17,16 @@ $items = $database->select_stock_items_paginated($offset, $perPage, $search);
 $all_items = $database->select_items();
 $stock_adjustment = $database->select_stock_adjustment();
 
-$low_stock = count(array_filter($all_items, fn($item) => $item['quantity'] > 0 && $item['quantity'] <= $item['min_stock']));
-$out_of_stock = count(array_filter($all_items, fn($item) => $item['quantity'] <= 0));
-$total_value = array_sum(array_map(fn($item) => $item['selling_price'] * $item['quantity'], $all_items));
+$low_stock    = count(array_filter($all_items, fn($i) => $i['quantity'] > 0 && $i['quantity'] <= $i['min_stock']));
+$out_of_stock = count(array_filter($all_items, fn($i) => $i['quantity'] <= 0));
+$total_value  = array_sum(array_map(fn($i) => $i['selling_price'] * $i['quantity'], $all_items));
 
 function formatCompactCurrency($number)
 {
-  if ($number >= 1_000_000_000) {
-    return '₱' . round($number / 1_000_000_000, 1) . 'B';
-  } elseif ($number >= 1_000_000) {
-    return '₱' . round($number / 1_000_000, 1) . 'M';
-  } elseif ($number >= 1_000) {
-    return '₱' . round($number / 1_000, 1) . 'k';
-  } else {
-    return '₱' . number_format($number, 0);
-  }
+  if ($number >= 1_000_000_000) return '₱' . round($number / 1_000_000_000, 1) . 'B';
+  if ($number >= 1_000_000)     return '₱' . round($number / 1_000_000, 1) . 'M';
+  if ($number >= 1_000)         return '₱' . round($number / 1_000, 1) . 'k';
+  return '₱' . number_format($number, 0);
 }
 ?>
 <!DOCTYPE html>
@@ -42,176 +37,609 @@ function formatCompactCurrency($number)
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Stock Levels</title>
   <link rel="stylesheet" href="assets/tailwind.min.css">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="assets/fonts.css" rel="stylesheet">
+
   <style>
-    .status-label {
-      padding: 2px 8px;
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #f5a623;
+      --text: #e8eaf0;
+      --text-muted: #7b82a0;
+      --success: #43d392;
+      --danger: #ff5c5c;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    main {
+      flex: 1;
+      padding: 24px;
+      transition: margin-left .3s ease;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, .2);
+    }
+
+    .stat-card h4 {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 4px 0 2px;
+    }
+
+    .stat-card p:first-child {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .stat-card p:last-child {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+
+    .btn-primary:hover {
+      opacity: .88;
+    }
+
+    .search-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 36px 9px 38px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(245, 166, 35, .1);
+    }
+
+    .search-wrap input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1;
+      text-decoration: none;
+      transition: color .2s;
+    }
+
+    .search-clear:hover {
+      color: var(--danger);
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-success {
+      background: rgba(67, 211, 146, .1);
+      border: 1px solid rgba(67, 211, 146, .3);
+      color: var(--success);
+    }
+
+    .alert-error {
+      background: rgba(255, 92, 92, .1);
+      border: 1px solid rgba(255, 92, 92, .3);
+      color: var(--danger);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table thead tr {
+      border-bottom: 1.5px solid var(--border);
+    }
+
+    .data-table thead th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .data-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .data-table tbody td {
+      padding: 13px 16px;
+    }
+
+    .status-pill {
+      padding: 3px 10px;
       font-size: 12px;
       font-weight: 600;
-      border-radius: 9999px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .status-out {
+      background: rgba(255, 92, 92, .18);
+      color: var(--danger);
+    }
+
+    .status-low {
+      background: rgba(245, 166, 35, .18);
+      color: var(--warning);
+    }
+
+    .status-in {
+      background: rgba(67, 211, 146, .18);
+      color: var(--success);
+    }
+
+    .btn-action {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+
+    .btn-action:hover {
+      opacity: .9;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      text-decoration: none;
+      transition: all .2s;
+    }
+
+    .page-btn:hover {
+      border-color: var(--accent);
+      background: rgba(245, 166, 35, .08);
+      color: var(--accent);
+    }
+
+    .page-btn.active {
+      background: var(--accent);
+      color: #111;
+      border-color: var(--accent);
+    }
+
+    .page-btn.disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .recent-list {
+      margin-top: 12px;
+    }
+
+    .recent-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .recent-item:last-child {
+      border-bottom: none;
+    }
+
+    .recent-item .info p:first-child {
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+
+    .recent-item .info p:nth-child(2) {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .recent-item .info p:nth-child(3) {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .recent-item .change {
+      text-align: right;
+      min-width: 80px;
+    }
+
+    .change-value {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .change-positive {
+      color: var(--success);
+    }
+
+    .change-negative {
+      color: var(--danger);
+    }
+
+    .change-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal-box {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      width: 460px;
+      max-width: 92%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, .4);
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+
+    .form-input,
+    .form-textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .form-input:focus,
+    .form-textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .qty-adjust-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .qty-btn {
+      width: 38px;
+      height: 38px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .qty-btn:hover {
+      background: var(--accent);
+      color: #111;
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-cancel {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover {
+      color: var(--text);
+      border-color: #555;
+    }
+
+    .btn-confirm-ok {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-confirm-ok:hover {
+      opacity: .88;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 5px;
+    }
+
+    /* Remove arrows in Chrome, Edge, Safari */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    /* Remove arrows in Firefox */
+    input[type=number] {
+      -moz-appearance: textfield;
     }
   </style>
 </head>
 
-<body class="bg-gray-50 flex">
+<body>
 
-  <!-- Mobile Sidebar Toggle Button -->
-  <button id="sidebar-toggle" class="md:hidden p-3 fixed top-4 left-4 z-60 text-white rounded shadow-lg"
-    style="background-color: rgba(170, 170, 170, 0.82);">
-    ☰
-  </button>
-
+  <button class="mobile-toggle" id="sidebar-toggle">☰</button>
   <?php include "sidebar.php"; ?>
 
-  <!-- Main Content -->
-  <main class="flex-1 ml-0 md:ml-64 p-6">
-    <header class="mb-6">
-      <h2 class="text-2xl font-bold text-gray-800">Inventory Stock</h2>
-    </header>
+  <main style="margin-left:240px;">
 
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <div class="flex items-center justify-between mb-4">
+    <div class="card">
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <p>Total Items</p>
+          <h4><?= count($all_items) ?></h4>
+          <p>products in catalog</p>
+        </div>
+        <div class="stat-card">
+          <p>Low Stock</p>
+          <h4 style="color:var(--warning)"><?= $low_stock ?></h4>
+          <p>need reordering</p>
+        </div>
+        <div class="stat-card">
+          <p>Out of Stock</p>
+          <h4 style="color:var(--danger)"><?= $out_of_stock ?></h4>
+          <p>urgent action required</p>
+        </div>
+        <div class="stat-card">
+          <p>Inventory Value</p>
+          <h4><?= formatCompactCurrency($total_value) ?></h4>
+          <p>estimated total value</p>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 360px; gap:24px;">
         <div>
-          <h3 class="text-xl font-bold text-gray-800">Stock Levels</h3>
-          <p class="text-sm text-gray-500">Monitor inventory levels and manage stock adjustments</p>
-        </div>
-      </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Total Items</p>
-            <h4 class="text-2xl font-bold"><?= count($all_items) ?></h4>
-            <p class="text-xs text-gray-500">products in catalog</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Low Stock Items</p>
-            <h4 class="text-2xl font-bold"><?= $low_stock ?></h4>
-            <p class="text-xs text-gray-500">need reordering</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Out of Stock</p>
-            <h4 class="text-2xl font-bold"><?= $out_of_stock ?></h4>
-            <p class="text-xs text-gray-500">urgent reorder</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Total Value</p>
-            <h4 class="text-2xl font-bold"><?= formatCompactCurrency($total_value) ?></h4>
-            <p class="text-xs text-gray-500">inventory value</p>
-          </div>
-        </div>
-      </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+            <h3 style="font-size:16px; font-weight:700;">Inventory Levels</h3>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div class="bg-white border rounded-xl p-6 lg:col-span-2">
-          <!-- Search Bar -->
-          <div class="flex items-center justify-between mb-4">
-            <h4 class="text-lg font-semibold">Inventory Levels</h4>
-            <form method="GET" action="" class="relative w-full max-w-md ml-4">
-              <input
-                type="text"
-                name="search"
-                id="searchInput"
-                value="<?= htmlspecialchars($search) ?>"
-                placeholder="Search items by name or barcode..."
-                class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-              <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
-
-              <?php if ($search !== ''): ?>
-                <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <span class="material-icons text-sm">close</span>
-                </a>
-              <?php endif; ?>
-            </form>
-          </div>
-
-          <?php if (isset($_SESSION['create-success'])): ?>
-            <div id="successAlert"
-              class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
-              <?= $_SESSION['create-success'] ?>
+            <div class="search-wrap">
+              <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <form method="GET">
+                <input type="text" name="search" id="searchInput" value="<?= htmlspecialchars($search) ?>" placeholder="Search name or barcode...">
+                <?php if ($search !== ''): ?>
+                  <a href="?" class="search-clear">×</a>
+                <?php endif; ?>
+              </form>
             </div>
-            <?php unset($_SESSION['create-success']); ?>
+          </div>
+
+          <?php if (isset($_SESSION['adjust-success'])): ?>
+            <div class="alert alert-success"><?= $_SESSION['adjust-success'] ?></div>
+            <?php unset($_SESSION['adjust-success']); ?>
           <?php endif; ?>
 
-          <?php if (isset($_SESSION['create-error'])): ?>
-            <div id="errorAlert" class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
-              <?= $_SESSION['create-error'] ?>
-            </div>
-            <?php unset($_SESSION['create-error']); ?>
+          <?php if (isset($_SESSION['adjust-error'])): ?>
+            <div class="alert alert-error"><?= $_SESSION['adjust-error'] ?></div>
+            <?php unset($_SESSION['adjust-error']); ?>
           <?php endif; ?>
 
           <?php if ($search !== ''): ?>
-            <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              Showing results for "<strong><?= htmlspecialchars($search) ?></strong>"
-              (<?= $totalItems ?> item<?= $totalItems !== 1 ? 's' : '' ?>)
-              <a href="?" class="ml-2 text-blue-600 hover:underline">Clear search</a>
+            <div style="background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.2); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+              Results for "<strong style="color:var(--text)"><?= htmlspecialchars($search) ?></strong>" — <?= $totalItems ?> item<?= $totalItems !== 1 ? 's' : '' ?>
+              <a href="?" style="color:var(--accent); margin-left:12px; font-weight:600; text-decoration:none;">Clear</a>
             </div>
           <?php endif; ?>
 
-          <p class="text-sm text-gray-500 mb-4">Items ordered by priority: Out of Stock → Low Stock → In Stock</p>
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">
+            Ordered by priority: Out of Stock → Low Stock → In Stock
+          </p>
 
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock
-                  </th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min stock
-                  </th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th scope="col"
-                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th>Product</th>
+                  <th>Current Stock</th>
+                  <th>Min Stock</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
+              <tbody>
                 <?php if (!empty($items)): ?>
                   <?php foreach ($items as $item): ?>
                     <?php
-                    $qty = $item['quantity'];
-                    $min = $item['min_stock'];
-
-                    if ($qty <= 0) {
-                      $statusText = "Out of Stock";
-                      $statusClasses = "bg-red-100 text-red-800";
-                    } elseif ($qty > 0 && $qty <= $min) {
-                      $statusText = "Low Stock";
-                      $statusClasses = "bg-yellow-100 text-yellow-800";
-                    } else {
-                      $statusText = "In Stock";
-                      $statusClasses = "bg-green-100 text-green-800";
-                    }
+                    $qty = (int)$item['quantity'];
+                    $min = (int)$item['min_stock'];
+                    if ($qty <= 0)     $status = ['Out of Stock', 'status-out'];
+                    elseif ($qty <= $min)  $status = ['Low Stock',   'status-low'];
+                    else                   $status = ['In Stock',     'status-in'];
                     ?>
-                    <tr class="hover:bg-gray-50">
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($item['item_name']) ?></p>
-                        <p class="text-xs text-gray-500"><?= htmlspecialchars($item['barcode']) ?></p>
+                    <tr>
+                      <td>
+                        <div style="font-weight:600;"><?= htmlspecialchars($item['item_name']) ?></div>
+                        <div style="color:var(--text-muted); font-size:12px; margin-top:2px;">
+                          <?= htmlspecialchars($item['barcode'] ?: '—') ?>
+                        </div>
                       </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                        <?= $qty ?>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <p class="text-xs">Min: <?= $min ?></p>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium <?= $statusClasses ?>">
-                          <?= $statusText ?>
-                        </span>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="px-4 py-2 border rounded-lg text-gray-700 text-sm hover:bg-gray-100 adjustBtn"
-                          data-item-id="<?= $item['item_id'] ?>" data-item-name="<?= htmlspecialchars($item['item_name']) ?>"
-                          data-current-qty="<?= $qty ?>">
+                      <td style="font-weight:600;"><?= $qty ?></td>
+                      <td style="color:var(--text-muted);">min: <?= $min ?></td>
+                      <td><span class="status-pill <?= $status[1] ?>"><?= $status[0] ?></span></td>
+                      <td>
+                        <button class="btn-action adjustBtn"
+                          data-id="<?= $item['item_id'] ?>"
+                          data-name="<?= htmlspecialchars($item['item_name']) ?>"
+                          data-qty="<?= $qty ?>">
                           Adjust
                         </button>
                       </td>
@@ -219,8 +647,8 @@ function formatCompactCurrency($number)
                   <?php endforeach; ?>
                 <?php else: ?>
                   <tr>
-                    <td colspan="5" class="px-6 py-10 text-center text-gray-500">
-                      <?= $search !== '' ? 'No items found matching your search.' : 'No items found.' ?>
+                    <td colspan="5" style="text-align:center; padding:60px 20px; color:var(--text-muted); font-size:15px;">
+                      <?= $search ? 'No matching items found.' : 'No stock items to display.' ?>
                     </td>
                   </tr>
                 <?php endif; ?>
@@ -228,288 +656,235 @@ function formatCompactCurrency($number)
             </table>
           </div>
 
-          <!-- Pagination Controls -->
-          <?php if ($totalPages > 1): ?>
-            <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
-              <div class="text-sm text-gray-700">
-                Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
+          <?php if ($totalPages > 1):
+            $q = $search ? '&search=' . urlencode($search) : '';
+          ?>
+            <div class="pagination">
+              <div style="font-size:12px; color:var(--text-muted);">
+                Page <strong style="color:var(--text)"><?= $page ?></strong> of <strong style="color:var(--text)"><?= $totalPages ?></strong>
               </div>
-
-              <nav class="flex items-center space-x-1">
-                <?php
-                $searchParam = $search !== '' ? '&search=' . urlencode($search) : '';
-                ?>
-
-                <!-- Previous -->
+              <div style="display:flex; gap:4px; flex-wrap:wrap;">
                 <?php if ($page > 1): ?>
-                  <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Previous
-                  </a>
+                  <a href="?page=<?= $page - 1 ?><?= $q ?>" class="page-btn">‹ Prev</a>
                 <?php else: ?>
-                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Previous
-                  </span>
+                  <span class="page-btn disabled">‹ Prev</span>
                 <?php endif; ?>
 
                 <?php
                 $range = 2;
                 $start = max(1, $page - $range);
-                $end = min($totalPages, $page + $range);
-
-                // Show first page and ellipsis if needed
+                $end   = min($totalPages, $page + $range);
                 if ($start > 1): ?>
-                  <a href="?page=1<?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    1
-                  </a>
-                  <?php if ($start > 2): ?>
-                    <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                  <?php endif; ?>
+                  <a href="?page=1<?= $q ?>" class="page-btn">1</a>
+                  <?php if ($start > 2): ?><span style="padding:6px 8px; color:var(--text-muted);">…</span><?php endif; ?>
                 <?php endif; ?>
 
-                <?php
-                // Show page numbers in range
-                for ($i = $start; $i <= $end; $i++):
-                  if ($i === $page): ?>
-                    <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                      <?= $i ?>
-                    </span>
+                <?php for ($i = $start; $i <= $end; $i++): ?>
+                  <?php if ($i === $page): ?>
+                    <span class="page-btn active"><?= $i ?></span>
                   <?php else: ?>
-                    <a href="?page=<?= $i ?><?= $searchParam ?>"
-                      class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                      <?= $i ?>
-                    </a>
+                    <a href="?page=<?= $i ?><?= $q ?>" class="page-btn"><?= $i ?></a>
                   <?php endif; ?>
                 <?php endfor; ?>
 
-                <?php
-                // Show ellipsis and last page if needed
-                if ($end < $totalPages): ?>
-                  <?php if ($end < $totalPages - 1): ?>
-                    <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                  <?php endif; ?>
-                  <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    <?= $totalPages ?>
-                  </a>
+                <?php if ($end < $totalPages): ?>
+                  <?php if ($end < $totalPages - 1): ?><span style="padding:6px 8px; color:var(--text-muted);">…</span><?php endif; ?>
+                  <a href="?page=<?= $totalPages ?><?= $q ?>" class="page-btn"><?= $totalPages ?></a>
                 <?php endif; ?>
 
-                <!-- Next -->
                 <?php if ($page < $totalPages): ?>
-                  <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Next
-                  </a>
+                  <a href="?page=<?= $page + 1 ?><?= $q ?>" class="page-btn">Next ›</a>
                 <?php else: ?>
-                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                    Next
-                  </span>
+                  <span class="page-btn disabled">Next ›</span>
                 <?php endif; ?>
-              </nav>
+              </div>
             </div>
           <?php endif; ?>
+
         </div>
 
-        <div class="bg-white border rounded-xl p-6 col-span-1">
-          <h4 class="text-lg font-semibold mb-2">Recent Adjustments</h4>
-          <p class="text-sm text-gray-500 mb-4">Latest stock changes</p>
-          <ul class="space-y-4">
+        <!-- Recent Adjustments Sidebar -->
+        <div style="background:var(--surface); border:1.5px solid var(--border); border-radius:14px; padding:20px;">
+          <h4 style="font-size:15px; font-weight:700; margin-bottom:12px;">Recent Adjustments</h4>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:16px;">Latest stock changes</p>
+
+          <div class="recent-list">
             <?php foreach (array_slice($stock_adjustment, 0, 10) as $sa): ?>
-              <li class="flex justify-between items-start">
-                <div>
-                  <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($sa['item_name']) ?></p>
-                  <p class="text-xs text-gray-500"><?= htmlspecialchars($sa['reason_adjustment']) ?></p>
-                  <p class="text-xs text-gray-500"><?= htmlspecialchars($sa['username']) ?></p>
+              <?php
+              $delta = $sa['new_quantity'] - $sa['previous_quantity'];
+              $class = $delta >= 0 ? 'change-positive' : 'change-negative';
+              $sign  = $delta > 0 ? '+' : '';
+              ?>
+              <div class="recent-item">
+                <div class="info">
+                  <p><?= htmlspecialchars($sa['item_name']) ?></p>
+                  <p><?= htmlspecialchars($sa['reason_adjustment']) ?></p>
+                  <p>by <?= htmlspecialchars($sa['username']) ?></p>
                 </div>
-                <div class="text-right">
-                  <?php
-                  $adjustment = $sa['new_quantity'] - $sa['previous_quantity'];
-                  $color = $adjustment >= 0 ? 'text-green-600' : 'text-red-600';
-                  $sign = $adjustment > 0 ? '+' : '';
-                  ?>
-                  <span class="<?= $color ?> font-bold text-lg"><?= $sign . $adjustment ?></span>
-                  <p class="text-xs text-gray-500"><?= date('M j, g:i A', strtotime($sa['created_at'])) ?></p>
+                <div class="change">
+                  <div class="change-value <?= $class ?>"><?= $sign . $delta ?></div>
+                  <div class="change-time"><?= date('M j, g:i A', strtotime($sa['created_at'])) ?></div>
                 </div>
-              </li>
+              </div>
             <?php endforeach; ?>
-          </ul>
+
+            <?php if (empty($stock_adjustment)): ?>
+              <div style="text-align:center; color:var(--text-muted); padding:30px 0; font-size:13.5px;">
+                No adjustments recorded yet.
+              </div>
+            <?php endif; ?>
+          </div>
         </div>
       </div>
-    </section>
+
+    </div>
   </main>
 
   <!-- Stock Adjustment Modal -->
-  <div id="adjustModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-    <div class="bg-white rounded-lg shadow-lg w-96 p-6">
-      <h2 class="text-xl font-semibold mb-4">Adjust Stock</h2>
-      <form id="adjustForm" method="POST" action="">
-        <input type="hidden" name="item_id" id="modalItemId" value="" />
+  <div id="adjustModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Adjust Stock Level</h3>
 
-        <div class="mb-3">
-          <label class="block text-sm font-medium text-gray-700">Item Name</label>
-          <p id="modalItemName" class="mt-1 text-gray-900"></p>
+      <form method="POST" id="adjustForm">
+        <input type="hidden" name="item_id" id="modalItemId">
+
+        <div class="form-group">
+          <label>Item</label>
+          <div style="font-size:14px; font-weight:600;" id="modalItemName"></div>
         </div>
 
-        <div class="mb-3">
-          <label class="block text-sm font-medium text-gray-700">Current Quantity:</label>
-          <p id="modalCurrentQty" class="inline-block text-gray-900 ml-1"></p>
+        <div class="form-group">
+          <label>Current Quantity</label>
+          <div style="font-size:15px; font-weight:600;" id="modalCurrentQty"></div>
         </div>
 
-        <div class="mb-3">
-          <label for="adjustQty" class="block text-sm font-medium text-gray-700 mb-1">
-            Adjustment Quantity
-          </label>
-          <div class="flex items-center space-x-2">
-            <button type="button" id="decrementBtn"
-              class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold">-</button>
-            <input type="number" id="adjustQty" name="adjust_qty" required
-              class="w-full text-center rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              placeholder="Enter adjustment" />
-            <button type="button" id="incrementBtn"
-              class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold">+</button>
+        <div class="form-group">
+          <label>Adjustment Quantity</label>
+          <div class="qty-adjust-row">
+            <button type="button" class="qty-btn" id="decrementBtn">−</button>
+            <input type="number" id="adjustQty" name="adjust_qty" required min="-9999" max="9999" step="1" value="1" class="form-input" style="text-align:center;">
+            <button type="button" class="qty-btn" id="incrementBtn">+</button>
           </div>
         </div>
 
-        <div class="mb-4">
-          <label for="reason" class="block text-sm font-medium text-gray-700">Reason for Adjustment</label>
-          <textarea id="reason" name="reason_adjustment" required rows="3"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            placeholder="Enter reason"></textarea>
+        <div class="form-group">
+          <label>Reason for Adjustment</label>
+          <textarea name="reason_adjustment" required rows="3" class="form-textarea" placeholder="e.g. Damaged items, received shipment, miscount..."></textarea>
         </div>
 
-        <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelBtn" class="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-700">
-            Cancel
-          </button>
-          <button type="submit" name="adjust_stock_submit"
-            class="px-4 py-2 rounded bg-black text-white hover:bg-gray-800">
-            Submit
-          </button>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="cancelAdjust">Cancel</button>
+          <button type="submit" name="adjust_stock_submit" class="btn-confirm-ok">Confirm Adjustment</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- BugerBar Toggle -->
   <script>
-    const sidebar = document.getElementById('mobile-sidebar');
-    const toggleBtn = document.getElementById('sidebar-toggle');
-
-    toggleBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('-translate-x-full');
-    });
-  </script>
-
-  <!-- BugerBar Close -->
-  <script>
-    const closeBtn = document.getElementById('sidebar-close');
-
-    closeBtn.addEventListener('click', () => {
-      sidebar.classList.add('-translate-x-full');
-    });
-  </script>
-
-  <!-- Save scroll before reload/submit -->
-  <script>
-    window.addEventListener('beforeunload', () => {
-      sessionStorage.setItem('scrollPos', window.scrollY);
-    });
-
-    window.addEventListener('load', () => {
-      const scrollPos = sessionStorage.getItem('scrollPos');
-      if (scrollPos) {
-        window.scrollTo(0, parseInt(scrollPos));
-        sessionStorage.removeItem('scrollPos');
-      }
-    });
-  </script>
-
-  <!-- Unset Alert -->
-  <script>
-    const successAlert = document.getElementById('successAlert');
-    if (successAlert) {
-      setTimeout(() => {
-        successAlert.style.display = 'none';
-        fetch('unset_alert.php');
-      }, 3000);
-    }
-
-    const errorAlert = document.getElementById('errorAlert');
-    if (errorAlert) {
-      setTimeout(() => {
-        errorAlert.style.display = 'none';
-        fetch('unset_alert.php');
-      }, 3000);
-    }
-  </script>
-
-  <!-- Auto-submit search form after user stops typing -->
-  <script>
-    let searchTimeout;
-    const searchInput = document.getElementById('searchInput');
-    const searchForm = searchInput.closest('form');
-
-    if (searchInput) {
-      searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          searchForm.submit();
-        }, 500);
-      });
-    }
-  </script>
-
-  <!-- (+ -) Button Script -->
-  <script>
-    document.getElementById('decrementBtn').addEventListener('click', function() {
-      const input = document.getElementById('adjustQty');
-      let value = parseInt(input.value) || 0;
-      input.value = value - 1;
-    });
-
-    document.getElementById('incrementBtn').addEventListener('click', function() {
-      const input = document.getElementById('adjustQty');
-      let value = parseInt(input.value) || 0;
-      input.value = value + 1;
-    });
-  </script>
-
-  <!-- Stock Adjustment Script -->
-  <script>
+    // Modal controls
     const adjustModal = document.getElementById('adjustModal');
-    const adjustButtons = document.querySelectorAll('.adjustBtn');
-    const modalItemId = document.getElementById('modalItemId');
-    const modalItemName = document.getElementById('modalItemName');
-    const modalCurrentQty = document.getElementById('modalCurrentQty');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const adjustForm = document.getElementById('adjustForm');
 
-    adjustButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const itemId = button.dataset.itemId;
-        const itemName = button.dataset.itemName;
-        const currentQty = button.dataset.currentQty;
+    function openAdjustModal() {
+      adjustModal.classList.add('active');
+    }
 
-        modalItemId.value = itemId;
-        modalItemName.textContent = itemName;
-        modalCurrentQty.textContent = currentQty;
-
-        adjustForm.reset();
-        document.getElementById('modalItemId').value = itemId;
-
-        adjustModal.classList.remove('hidden');
-      });
-    });
-
-    cancelBtn.addEventListener('click', () => {
-      adjustModal.classList.add('hidden');
-    });
+    function closeAdjustModal() {
+      adjustModal.classList.remove('active');
+    }
 
     adjustModal.addEventListener('click', e => {
-      if (e.target === adjustModal) {
-        adjustModal.classList.add('hidden');
+      if (e.target === adjustModal) closeAdjustModal();
+    });
+    document.getElementById('cancelAdjust')?.addEventListener('click', closeAdjustModal);
+
+    // Open modal from buttons
+    document.querySelectorAll('.adjustBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('modalItemId').value = btn.dataset.id;
+        document.getElementById('modalItemName').textContent = btn.dataset.name;
+        document.getElementById('modalCurrentQty').textContent = btn.dataset.qty;
+        document.getElementById('adjustQty').value = 1;
+        document.getElementById('adjustForm').reset();
+        openAdjustModal();
+      });
+    });
+
+    // + / − buttons logic + skip 0
+    const qtyInput = document.getElementById('adjustQty');
+    const decrementBtn = document.getElementById('decrementBtn');
+    const incrementBtn = document.getElementById('incrementBtn');
+
+    // Helper: set value and jump over 0
+    function setQtySafe(newValue) {
+      let num = Number(newValue);
+
+      // If result would be 0 → jump to -1 when decreasing, +1 when increasing
+      if (num === 0) {
+        // Determine direction from previous value
+        let prev = Number(qtyInput.value) || 1;
+        num = (newValue < prev) ? -1 : 1;
       }
+
+      // Clamp to reasonable range
+      num = Math.max(-9999, Math.min(9999, num));
+
+      qtyInput.value = num;
+    }
+
+    // Decrement
+    decrementBtn?.addEventListener('click', () => {
+      let current = Number(qtyInput.value) || 1;
+      setQtySafe(current - 1);
+    });
+
+    // Increment
+    incrementBtn?.addEventListener('click', () => {
+      let current = Number(qtyInput.value) || 1;
+      setQtySafe(current + 1);
+    });
+
+    qtyInput?.addEventListener('input', (e) => {
+      let val = e.target.value.trim();
+
+      if (val === '' || val === '-') return;
+
+      let num = Number(val);
+
+      if (num === 0 || isNaN(num)) {
+        let prev = Number(qtyInput.dataset.lastValue || '1');
+        e.target.value = (num < prev || num === 0) ? '-1' : '1';
+      } else {
+        qtyInput.dataset.lastValue = num;
+      }
+    });
+
+    qtyInput?.addEventListener('blur', () => {
+      let val = qtyInput.value.trim();
+      if (val === '' || val === '-' || Number(val) === 0) {
+        qtyInput.value = '1';
+      }
+    });
+    qtyInput.value = '1';
+
+    // Live search
+    let timeout;
+    document.getElementById('searchInput')?.addEventListener('input', function() {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => this.closest('form').submit(), 480);
+    });
+
+    // Sidebar margin sync (if collapsible sidebar exists)
+    function syncMargin() {
+      const collapsed = document.getElementById('main-sidebar')?.classList.contains('collapsed');
+      document.querySelector('main').style.marginLeft = collapsed ? '64px' : '240px';
+    }
+    document.getElementById('sidebarCollapseBtn')?.addEventListener('click', () => setTimeout(syncMargin, 80));
+    syncMargin();
+
+    // Auto-dismiss alerts
+    document.querySelectorAll('.alert').forEach(el => {
+      setTimeout(() => el.style.opacity = '0', 3200);
+      setTimeout(() => el.remove(), 4000);
     });
   </script>
 </body>

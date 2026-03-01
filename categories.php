@@ -10,164 +10,660 @@ $database->archive_category();
 $perPage = 5;
 $search  = trim($_GET['search'] ?? '');
 $page    = max(1, (int) ($_GET['page'] ?? 1));
-
-$offset = ($page - 1) * $perPage;
+$offset  = ($page - 1) * $perPage;
 
 $totalCategories = $database->getTotalCategoriesCount($search);
-$totalPages = max(1, ceil($totalCategories / $perPage));
-
-$categories = $database->select_categories_paginated($offset, $perPage, $search);
+$totalPages      = max(1, ceil($totalCategories / $perPage));
+$categories      = $database->select_categories_paginated($offset, $perPage, $search);
 ?>
+<!DOCTYPE html>
+<html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POS & Inventory - Categories</title>
     <link rel="stylesheet" href="assets/tailwind.min.css">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <link href="assets/fonts.css" rel="stylesheet">
     <style>
-        .status-label {
-            padding: 2px 8px;
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #22263a;
+            --border: #2e3347;
+            --accent: #f5a623;
+            --text: #e8eaf0;
+            --text-muted: #7b82a0;
+            --success: #43d392;
+            --danger: #ff5c5c;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        main {
+            font-family: 'DM Sans', sans-serif;
+            transition: margin-left .3s ease;
+        }
+
+        /* ── Page header ── */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .page-header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .card-header p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* ── Btn primary ── */
+        .btn-primary {
+            background: var(--accent);
+            color: #111;
+            border: none;
+            border-radius: 10px;
+            padding: 9px 18px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity .2s;
+            white-space: nowrap;
+        }
+
+        .btn-primary:hover {
+            opacity: .88;
+        }
+
+        /* ── Search ── */
+        .search-wrap {
+            position: relative;
+            width: 300px;
+        }
+
+        .search-wrap input {
+            width: 100%;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 9px 36px 9px 38px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        .search-wrap input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(245, 166, 35, .1);
+        }
+
+        .search-wrap input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 16px;
+            line-height: 1;
+            transition: color .2s;
+        }
+
+        .search-clear:hover {
+            color: var(--danger);
+        }
+
+        /* ── Search info ── */
+        .search-info {
+            background: rgba(245, 166, 35, .08);
+            border: 1px solid rgba(245, 166, 35, .2);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .search-info a {
+            color: var(--accent);
+            text-decoration: none;
             font-size: 12px;
             font-weight: 600;
-            border-radius: 9999px;
+        }
+
+        .search-info a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Alerts ── */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: rgba(67, 211, 146, .1);
+            border: 1px solid rgba(67, 211, 146, .3);
+            color: var(--success);
+        }
+
+        .alert-error {
+            background: rgba(255, 92, 92, .1);
+            border: 1px solid rgba(255, 92, 92, .3);
+            color: var(--danger);
+        }
+
+        /* ── Table ── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .data-table thead tr {
+            border-bottom: 1.5px solid var(--border);
+        }
+
+        .data-table thead th {
+            padding: 10px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .data-table tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background .15s;
+        }
+
+        .data-table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(255, 255, 255, .02);
+        }
+
+        .data-table tbody td {
+            padding: 13px 16px;
+            color: var(--text);
+        }
+
+        .data-table tbody td.muted {
+            color: var(--text-muted);
+        }
+
+        .data-table .empty-row td {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* ── Action buttons ── */
+        .btn-action {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 7px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .15s, color .15s;
+            color: var(--text-muted);
+        }
+
+        .btn-action.edit:hover {
+            background: rgba(67, 211, 146, .1);
+            color: var(--success);
+        }
+
+        .btn-action.archive:hover {
+            background: rgba(255, 92, 92, .1);
+            color: var(--danger);
+        }
+
+        /* ── Pagination ── */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pagination-info {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .pagination-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .page-btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1.5px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            text-decoration: none;
+            transition: border-color .2s, background .2s, color .2s;
+            white-space: nowrap;
+        }
+
+        .page-btn:hover {
+            border-color: var(--accent);
+            background: rgba(245, 166, 35, .08);
+            color: var(--accent);
+        }
+
+        .page-btn.active {
+            background: var(--accent);
+            color: #111;
+            border-color: var(--accent);
+        }
+
+        .page-btn.disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            pointer-events: none;
+            opacity: .5;
+        }
+
+        .page-ellipsis {
+            padding: 6px 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* ── Modal overlay ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .7);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-box {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            width: 480px;
+            max-width: 92%;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, .4);
+        }
+
+        .modal-box h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 20px;
+        }
+
+        .modal-box p {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 22px;
+        }
+
+        .modal-box p strong {
+            color: var(--text);
+        }
+
+        /* ── Form elements ── */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .form-input::placeholder,
+        .form-textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-textarea {
+            resize: none;
+        }
+
+        .form-select {
+            cursor: pointer;
+        }
+
+        .form-select option {
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        .form-checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .form-checkbox-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+
+        .form-checkbox-row label {
+            font-size: 13px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        /* ── Modal actions ── */
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .btn-cancel {
+            background: var(--surface2);
+            border: 1.5px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 10px;
+            padding: 9px 20px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color .2s, color .2s;
+        }
+
+        .btn-cancel:hover {
+            color: var(--text);
+            border-color: #555;
+        }
+
+        .btn-confirm-ok {
+            background: var(--accent);
+            border: none;
+            color: #111;
+            border-radius: 10px;
+            padding: 9px 20px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+
+        .btn-confirm-ok:hover {
+            opacity: .88;
+        }
+
+        .btn-confirm-warning {
+            background: var(--warning);
+            border: none;
+            color: #111;
+            border-radius: 10px;
+            padding: 9px 20px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+
+        .btn-confirm-warning:hover {
+            opacity: .88;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 5px;
         }
     </style>
 </head>
 
-<body class="flex bg-gray-50 min-h-screen">
+<body>
 
-    <!-- Mobile Sidebar Toggle Button -->
-    <button id="sidebar-toggle" class="md:hidden p-3 fixed top-4 left-4 z-60 text-white rounded shadow-lg"
-        style="background-color: rgba(170, 170, 170, 0.82);">
-        ☰
-    </button>
-
+    <button class="mobile-toggle" id="sidebar-toggle">☰</button>
 
     <?php include "sidebar.php"; ?>
 
-    <!-- Main Content -->
-    <main class="flex-1 ml-0 md:ml-64 p-6">
-        <header class="mb-6">
-            <h2 class="text-2xl font-bold text-gray-800">Inventory Categories</h2>
-        </header>
+    <main class="flex-1 p-6" style="margin-left:240px;">
 
-        <section class="bg-white rounded-xl shadow-md p-6">
-            <div class="flex items-center justify-between mb-4">
+        <div class="page-header">
+            <h2>Manage your product categories</h2>
+        </div>
+
+        <div class="card">
+
+            <!-- Card Header -->
+            <div class="card-header">
                 <div>
-                    <h3 class="text-xl font-bold text-gray-800">Category Management</h3>
-                    <p class="text-sm text-gray-500">Manage your product categories</p>
+                    <h3>Category Management</h3>
+                    <p>Add, edit, or archive categories</p>
                 </div>
-
-                <div class="flex items-center space-x-2">
-                    <button id="openAddCategoryModal" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800">
-                        + Add Category
-                    </button>
-                </div>
+                <button id="openAddCategoryModal" class="btn-primary">+ Add Category</button>
             </div>
 
-
-            <!-- Search Bar -->
-            <form method="GET" action="" class="flex flex-col lg:flex-row items-stretch lg:items-center space-y-3 lg:space-y-0 lg:space-x-4 mb-4">
-                <div class="relative flex-1">
+            <!-- Search -->
+            <form method="GET" action="" style="margin-bottom:16px;">
+                <div class="search-wrap">
+                    <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.35-4.35" />
+                    </svg>
                     <input
                         type="text"
                         name="search"
                         id="searchInput"
                         value="<?= htmlspecialchars($search) ?>"
-                        placeholder="Search categories..."
-                        class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
+                        placeholder="Search categories…">
+                    <?php if ($search !== ''): ?>
+                        <a href="?" class="search-clear" title="Clear">✕</a>
+                    <?php endif; ?>
                 </div>
-
-                <?php if ($search !== ''): ?>
-                    <a href="?" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <span class="material-icons text-sm">close</span>
-                    </a>
-                <?php endif; ?>
             </form>
 
+            <!-- Alerts -->
             <?php if (isset($_SESSION['create-success'])): ?>
-                <div id="successAlert"
-                    class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
+                <div id="successAlert" class="alert alert-success">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     <?= $_SESSION['create-success'] ?>
                 </div>
-            <?php unset($_SESSION['create-success']);
-            endif; ?>
+                <?php unset($_SESSION['create-success']); ?>
+            <?php endif; ?>
 
             <?php if (isset($_SESSION['create-error'])): ?>
-                <div id="errorAlert"
-                    class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
+                <div id="errorAlert" class="alert alert-error">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01" />
+                    </svg>
                     <?= $_SESSION['create-error'] ?>
                 </div>
-            <?php unset($_SESSION['create-error']);
-            endif; ?>
+                <?php unset($_SESSION['create-error']); ?>
+            <?php endif; ?>
 
             <?php if ($search !== ''): ?>
-                <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                    Showing results for "<strong><?= htmlspecialchars($search) ?></strong>"
-                    (<?= $totalCategories ?> result<?= $totalCategories !== 1 ? 's' : '' ?>)
-                    <a href="?" class="ml-2 text-blue-600 hover:underline">Clear search</a>
+                <div class="search-info">
+                    <span>Results for "<strong style="color:var(--text)"><?= htmlspecialchars($search) ?></strong>" — <?= $totalCategories ?> result<?= $totalCategories !== 1 ? 's' : '' ?></span>
+                    <a href="?">Clear search</a>
                 </div>
             <?php endif; ?>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <!-- Table -->
+            <div style="overflow-x:auto;">
+                <table class="data-table">
+                    <thead>
                         <tr>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Category Name
-                            </th>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Description
-                            </th>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
+                            <th>Category Name</th>
+                            <th>Description</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
+                    <tbody>
                         <?php if (!empty($categories)): ?>
                             <?php foreach ($categories as $cat): ?>
                                 <?php if ((int)$cat['is_deleted'] === 1) continue; ?>
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= htmlspecialchars($cat['category_name']) ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?= $cat['category_description'] ? htmlspecialchars($cat['category_description']) : "N/A" ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <div class="flex space-x-2">
-                                            <button
-                                                class="text-green-400 hover:text-green-600 openEditCategoryModal"
+                                <tr>
+                                    <td style="font-weight:600;"><?= htmlspecialchars($cat['category_name']) ?></td>
+                                    <td class="muted"><?= $cat['category_description'] ? htmlspecialchars($cat['category_description']) : '—' ?></td>
+                                    <td>
+                                        <div style="display:flex; align-items:center; gap:4px;">
+                                            <button class="btn-action edit openEditCategoryModal"
                                                 data-id="<?= $cat['category_id'] ?>"
                                                 data-name="<?= htmlspecialchars($cat['category_name']) ?>"
                                                 data-description="<?= htmlspecialchars($cat['category_description']) ?>"
                                                 data-category-type="<?= htmlspecialchars($cat['category_type']) ?>"
-                                                data-supports-quantity="<?= (int) $cat['supports_quantity'] ?>"
+                                                data-supports-quantity="<?= (int)$cat['supports_quantity'] ?>"
                                                 title="Edit Category">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                                    fill="currentColor">
-                                                    <path
-                                                        d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                                    <path fill-rule="evenodd"
-                                                        d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
-                                                        clip-rule="evenodd" />
+                                                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                 </svg>
                                             </button>
-                                            <button
-                                                class="text-red-500 hover:text-red-700 openArchiveCategoryModal"
+                                            <button class="btn-action archive openArchiveCategoryModal"
                                                 data-id="<?= $cat['category_id'] ?>"
                                                 data-name="<?= htmlspecialchars($cat['category_name']) ?>"
                                                 title="Archive Category">
-                                                <!-- Archive icon -->
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fill-rule="evenodd"
-                                                        d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                                                        clip-rule="evenodd" />
+                                                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                                 </svg>
                                             </button>
                                         </div>
@@ -175,8 +671,8 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <tr>
-                                <td colspan="3" class="px-6 py-10 text-center text-gray-500">
+                            <tr class="empty-row">
+                                <td colspan="3">
                                     <?= $search !== '' ? 'No categories found matching your search.' : 'No categories found.' ?>
                                 </td>
                             </tr>
@@ -185,427 +681,222 @@ $categories = $database->select_categories_paginated($offset, $perPage, $search)
                 </table>
             </div>
 
-            <!-- Pagination Controls -->
-            <?php if ($totalPages > 1): ?>
-                <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
-                    <div class="text-sm text-gray-700">
-                        Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
+            <!-- Pagination -->
+            <?php if ($totalPages > 1):
+                $searchParam = $search !== '' ? '&search=' . urlencode($search) : '';
+            ?>
+                <div class="pagination">
+                    <div class="pagination-info">
+                        Page <strong style="color:var(--text)"><?= $page ?></strong> of <strong style="color:var(--text)"><?= $totalPages ?></strong>
                     </div>
+                    <nav class="pagination-nav">
 
-                    <nav class="flex items-center space-x-1">
-                        <?php
-                        // Build search parameter for all pagination links
-                        $searchParam = $search !== '' ? '&search=' . urlencode($search) : '';
-                        ?>
-
-                        <!-- Previous -->
                         <?php if ($page > 1): ?>
-                            <a href="?page=<?= $page - 1 ?><?= $searchParam ?>"
-                                class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                                Previous
-                            </a>
+                            <a href="?page=<?= $page - 1 ?><?= $searchParam ?>" class="page-btn">‹ Prev</a>
                         <?php else: ?>
-                            <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                                Previous
-                            </span>
+                            <span class="page-btn disabled">‹ Prev</span>
                         <?php endif; ?>
 
                         <?php
                         $range = 2;
                         $start = max(1, $page - $range);
-                        $end = min($totalPages, $page + $range);
+                        $end   = min($totalPages, $page + $range);
+                        ?>
 
-                        // Show first page and ellipsis if needed
-                        if ($start > 1): ?>
-                            <a href="?page=1<?= $searchParam ?>"
-                                class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                                1
-                            </a>
-                            <?php if ($start > 2): ?>
-                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                            <?php endif; ?>
+                        <?php if ($start > 1): ?>
+                            <a href="?page=1<?= $searchParam ?>" class="page-btn">1</a>
+                            <?php if ($start > 2): ?><span class="page-ellipsis">…</span><?php endif; ?>
                         <?php endif; ?>
 
-                        <?php
-                        // Show page numbers in range
-                        for ($i = $start; $i <= $end; $i++):
-                            if ($i === $page): ?>
-                                <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                                    <?= $i ?>
-                                </span>
+                        <?php for ($i = $start; $i <= $end; $i++): ?>
+                            <?php if ($i === $page): ?>
+                                <span class="page-btn active"><?= $i ?></span>
                             <?php else: ?>
-                                <a href="?page=<?= $i ?><?= $searchParam ?>"
-                                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                                    <?= $i ?>
-                                </a>
+                                <a href="?page=<?= $i ?><?= $searchParam ?>" class="page-btn"><?= $i ?></a>
                             <?php endif; ?>
                         <?php endfor; ?>
 
-                        <?php
-                        // Show ellipsis and last page if needed
-                        if ($end < $totalPages): ?>
-                            <?php if ($end < $totalPages - 1): ?>
-                                <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                            <?php endif; ?>
-                            <a href="?page=<?= $totalPages ?><?= $searchParam ?>"
-                                class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                                <?= $totalPages ?>
-                            </a>
+                        <?php if ($end < $totalPages): ?>
+                            <?php if ($end < $totalPages - 1): ?><span class="page-ellipsis">…</span><?php endif; ?>
+                            <a href="?page=<?= $totalPages ?><?= $searchParam ?>" class="page-btn"><?= $totalPages ?></a>
                         <?php endif; ?>
 
-                        <!-- Next -->
                         <?php if ($page < $totalPages): ?>
-                            <a href="?page=<?= $page + 1 ?><?= $searchParam ?>"
-                                class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                                Next
-                            </a>
+                            <a href="?page=<?= $page + 1 ?><?= $searchParam ?>" class="page-btn">Next ›</a>
                         <?php else: ?>
-                            <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                                Next
-                            </span>
+                            <span class="page-btn disabled">Next ›</span>
                         <?php endif; ?>
+
                     </nav>
                 </div>
             <?php endif; ?>
-        </section>
+
+        </div>
     </main>
 
     <!-- Add Category Modal -->
-    <div id="addCategoryModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-        <div class="bg-white rounded-lg w-full max-w-md p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Add New Category</h3>
-                <button id="closeAddCategoryModal" class="text-gray-500 hover:text-gray-700 text-xl leading-none">
-                    &times;
-                </button>
-            </div>
-
-            <form method="POST" class="space-y-4">
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        Category Name
-                    </label>
-                    <input
-                        type="text"
-                        name="category_name"
-                        required
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+    <div id="addCategoryModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Add New Category</h3>
+            <form method="POST">
+                <div class="form-group">
+                    <label>Category Name</label>
+                    <input type="text" name="category_name" class="form-input" required placeholder="e.g. Graphics Cards">
                 </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        Description
-                    </label>
-                    <textarea
-                        name="category_description"
-                        rows="3"
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md resize-none"
-                        placeholder="Optional"></textarea>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="category_description" class="form-textarea" rows="3" placeholder="Optional"></textarea>
                 </div>
-
-                <!-- Category Type -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Category Type</label>
-                    <select name="category_type" required
-                        class="mt-1 w-full p-2 border rounded">
+                <div class="form-group">
+                    <label>Category Type</label>
+                    <select name="category_type" class="form-select" required>
                         <option value="">Select type</option>
                         <option value="pc_part">PC Part</option>
                         <option value="accessory">Accessory</option>
                     </select>
                 </div>
-
-                <!-- Supports Quantity -->
-                <div class="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        name="supports_quantity"
-                        id="supports_quantity"
-                        class="rounded border-gray-300">
-                    <label for="supports_quantity" class="text-sm text-gray-700">
-                        Supports quantity (RAM, Storage, Accessories)
-                    </label>
+                <div class="form-checkbox-row">
+                    <input type="checkbox" name="supports_quantity" id="supports_quantity">
+                    <label for="supports_quantity">Supports quantity (RAM, Storage, Accessories)</label>
                 </div>
-
-
-                <div class="flex justify-end space-x-2 pt-4">
-                    <button type="button"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                        id="cancelCategoryModalBtn">
-                        Cancel
-                    </button>
-
-                    <button
-                        name="create_category"
-                        type="submit"
-                        class="px-4 py-2 bg-black text-white rounded">
-                        Save Category
-                    </button>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelCategoryModalBtn">Cancel</button>
+                    <button type="submit" name="create_category" class="btn-confirm-ok">Save Category</button>
                 </div>
             </form>
         </div>
     </div>
 
-
     <!-- Edit Category Modal -->
-    <div id="editCategoryModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-        <div class="bg-white rounded-lg w-full max-w-md p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Update Category</h3>
-                <button id="closeEditCategoryModal"
-                    class="text-gray-500 hover:text-gray-700 text-2xl leading-none">
-                    &times;
-                </button>
-            </div>
-
-            <form method="POST" class="space-y-4">
-
+    <div id="editCategoryModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Update Category</h3>
+            <form method="POST">
                 <input type="hidden" name="category_id" id="edit_category_id">
-
-                <!-- Category Name -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        Category Name
-                    </label>
-                    <input
-                        type="text"
-                        name="category_name"
-                        id="edit_category_name"
-                        required
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                <div class="form-group">
+                    <label>Category Name</label>
+                    <input type="text" name="category_name" id="edit_category_name" class="form-input" required>
                 </div>
-
-                <!-- Description -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        Description
-                    </label>
-                    <textarea
-                        name="category_description"
-                        id="edit_category_description"
-                        rows="3"
-                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md resize-none"
-                        placeholder="Optional">
-                </textarea>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="category_description" id="edit_category_description" class="form-textarea" rows="3" placeholder="Optional"></textarea>
                 </div>
-
-                <!-- Category Type -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">
-                        Category Type
-                    </label>
-                    <select
-                        name="category_type"
-                        id="edit_category_type"
-                        required
-                        class="mt-1 w-full p-2 border rounded">
+                <div class="form-group">
+                    <label>Category Type</label>
+                    <select name="category_type" id="edit_category_type" class="form-select" required>
                         <option value="">Select type</option>
                         <option value="pc_part">PC Part</option>
                         <option value="accessory">Accessory</option>
                     </select>
                 </div>
-
-                <!-- Supports Quantity -->
-                <div class="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        name="supports_quantity"
-                        id="edit_supports_quantity"
-                        class="rounded border-gray-300">
-                    <label for="edit_supports_quantity" class="text-sm text-gray-700">
-                        Supports quantity (RAM, Storage, Accessories)
-                    </label>
+                <div class="form-checkbox-row">
+                    <input type="checkbox" name="supports_quantity" id="edit_supports_quantity">
+                    <label for="edit_supports_quantity">Supports quantity (RAM, Storage, Accessories)</label>
                 </div>
-
-                <div class="flex justify-end space-x-2 pt-4">
-                    <button type="button"
-                        id="cancelEditCategoryModalBtn"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-                        Cancel
-                    </button>
-
-                    <button
-                        name="update_category"
-                        type="submit"
-                        class="px-4 py-2 bg-black text-white rounded">
-                        Update Category
-                    </button>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelEditCategoryModalBtn">Cancel</button>
+                    <button type="submit" name="update_category" class="btn-confirm-ok">Update Category</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Archive Category Modal -->
-    <div id="archiveCategoryModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-        <div class="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
-            <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Category</h3>
-            <p class="mb-4 text-sm text-gray-700">
-                Are you sure you want to archive <span id="archive_category_name" class="font-bold"></span>?
-                This action can be undone.
-            </p>
-
-            <form method="POST" class="flex justify-end space-x-2">
+    <div id="archiveCategoryModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Archive Category</h3>
+            <p>Are you sure you want to archive <strong id="archive_category_name"></strong>? This action can be undone later.</p>
+            <form method="POST">
                 <input type="hidden" name="category_id" id="archive_category_id">
-
-                <button type="button" id="cancelArchiveCategory"
-                    class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
-
-                <button type="submit" name="archive_category"
-                    class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
-                    Archive
-                </button>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelArchiveCategory">Cancel</button>
+                    <button type="submit" name="archive_category" class="btn-confirm-warning">Archive</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- BugerBar Toggle -->
     <script>
+        // Sidebar
         const sidebar = document.getElementById('mobile-sidebar');
         const toggleBtn = document.getElementById('sidebar-toggle');
-
-        toggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('-translate-x-full');
-        });
-    </script>
-
-    <!-- BugerBar Close -->
-    <script>
         const closeBtn = document.getElementById('sidebar-close');
+        if (toggleBtn) toggleBtn.addEventListener('click', () => sidebar?.classList.toggle('-translate-x-full'));
+        if (closeBtn) closeBtn.addEventListener('click', () => sidebar?.classList.add('-translate-x-full'));
 
-        closeBtn.addEventListener('click', () => {
-            sidebar.classList.add('-translate-x-full'); // close sidebar
-        });
-    </script>
+        // Sync sidebar collapse margin
+        const mainEl = document.querySelector('main');
+        const collapseBtn = document.getElementById('sidebarCollapseBtn');
+        const mainSidebar = document.getElementById('main-sidebar');
 
-    <!-- Unset Alert -->
-    <script>
-        const successAlert = document.getElementById('successAlert');
-        if (successAlert) {
-            setTimeout(() => {
-                successAlert.style.display = 'none';
-                fetch('unset_alert.php');
-            }, 3000);
+        function syncMargin() {
+            const collapsed = mainSidebar && mainSidebar.classList.contains('collapsed');
+            if (mainEl) mainEl.style.marginLeft = collapsed ? '64px' : '240px';
+        }
+        if (collapseBtn) collapseBtn.addEventListener('click', () => setTimeout(syncMargin, 50));
+        syncMargin();
+
+        // Modal helpers
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
         }
 
-        const errorAlert = document.getElementById('errorAlert');
-        if (errorAlert) {
-            setTimeout(() => {
-                errorAlert.style.display = 'none';
-                fetch('unset_alert.php');
-            }, 3000);
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
         }
-    </script>
 
-    <!-- Auto-submit search form after user stops typing -->
-    <script>
-        let searchTimeout;
-        const searchInput = document.getElementById('searchInput');
-
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    this.form.submit();
-                }, 500); // Wait 500ms after user stops typing
-            });
-        }
-    </script>
-
-    <!-- Add Category Script -->
-    <script>
-        const openCategoryBtn = document.getElementById('openAddCategoryModal');
-        const closeCategoryBtn = document.getElementById('closeAddCategoryModal');
-        const cancelCategoryBtn = document.getElementById('cancelCategoryModalBtn');
-        const categoryModal = document.getElementById('addCategoryModal');
-
-        openCategoryBtn.addEventListener('click', () => {
-            categoryModal.classList.remove('hidden');
-        });
-
-        closeCategoryBtn.addEventListener('click', () => {
-            categoryModal.classList.add('hidden');
-        });
-
-        cancelCategoryBtn.addEventListener('click', () => {
-            categoryModal.classList.add('hidden');
-        });
-
-        // Optional: close when clicking outside
-        window.addEventListener('click', (e) => {
-            if (e.target === categoryModal) {
-                categoryModal.classList.add('hidden');
-            }
-        });
-    </script>
-
-    <!-- Edit Category Script -->
-    <script>
-        const editCategoryButtons = document.querySelectorAll('.openEditCategoryModal');
-        const editCategoryModal = document.getElementById('editCategoryModal');
-        const closeEditCategoryModal = document.getElementById('closeEditCategoryModal');
-        const cancelEditCategoryModal = document.getElementById('cancelEditCategoryModalBtn');
-
-        editCategoryButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                document.getElementById('edit_category_id').value = button.dataset.id;
-                document.getElementById('edit_category_name').value = button.dataset.name;
-                document.getElementById('edit_category_description').value =
-                    button.dataset.description || '';
-                document.getElementById('edit_category_type').value =
-                    button.dataset.categoryType || '';
-
-                const supportsQuantity =
-                    button.dataset.supportsQuantity === '1' ||
-                    button.dataset.supportsQuantity === 'true';
-
-                document.getElementById('edit_supports_quantity').checked = supportsQuantity;
-
-
-                editCategoryModal.classList.remove('hidden');
+        // Close on backdrop click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', e => {
+                if (e.target === overlay) overlay.classList.remove('active');
             });
         });
 
-        closeEditCategoryModal.addEventListener('click', () => {
-            editCategoryModal.classList.add('hidden');
+        // Add Category Modal
+        document.getElementById('openAddCategoryModal').addEventListener('click', () => openModal('addCategoryModal'));
+        document.getElementById('cancelCategoryModalBtn').addEventListener('click', () => closeModal('addCategoryModal'));
+
+        // Edit Category Modal
+        document.querySelectorAll('.openEditCategoryModal').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('edit_category_id').value = btn.dataset.id;
+                document.getElementById('edit_category_name').value = btn.dataset.name;
+                document.getElementById('edit_category_description').value = btn.dataset.description || '';
+                document.getElementById('edit_category_type').value = btn.dataset.categoryType || '';
+                document.getElementById('edit_supports_quantity').checked =
+                    btn.dataset.supportsQuantity === '1' || btn.dataset.supportsQuantity === 'true';
+                openModal('editCategoryModal');
+            });
         });
+        document.getElementById('cancelEditCategoryModalBtn').addEventListener('click', () => closeModal('editCategoryModal'));
 
-        cancelEditCategoryModal.addEventListener('click', () => {
-            editCategoryModal.classList.add('hidden');
-        });
-
-        window.addEventListener('click', (e) => {
-            if (e.target === editCategoryModal) {
-                editCategoryModal.classList.add('hidden');
-            }
-        });
-    </script>
-
-    <!-- Archive Category Script -->
-    <script>
-        const archiveButtons = document.querySelectorAll('.openArchiveCategoryModal');
-        const archiveModal = document.getElementById('archiveCategoryModal');
-        const cancelArchive = document.getElementById('cancelArchiveCategory');
-
-        archiveButtons.forEach(btn => {
+        // Archive Category Modal
+        document.querySelectorAll('.openArchiveCategoryModal').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.getElementById('archive_category_id').value = btn.dataset.id;
                 document.getElementById('archive_category_name').textContent = btn.dataset.name;
-                archiveModal.classList.remove('hidden');
+                openModal('archiveCategoryModal');
             });
         });
+        document.getElementById('cancelArchiveCategory').addEventListener('click', () => closeModal('archiveCategoryModal'));
 
-        cancelArchive.addEventListener('click', () => {
-            archiveModal.classList.add('hidden');
-        });
+        // Search debounce
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => this.form.submit(), 500);
+            });
+        }
 
-        window.addEventListener('click', e => {
-            if (e.target === archiveModal) {
-                archiveModal.classList.add('hidden');
-            }
+        // Auto-hide alerts
+        ['successAlert', 'errorAlert'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) setTimeout(() => el.style.display = 'none', 3000);
         });
     </script>
 
 </body>
+
+</html>

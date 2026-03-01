@@ -27,15 +27,10 @@ $items = $database->select_items();
 
 function formatCompactCurrency($number)
 {
-  if ($number >= 1_000_000_000) {
-    return '₱' . round($number / 1_000_000_000, 1) . 'B';
-  } elseif ($number >= 1_000_000) {
-    return '₱' . round($number / 1_000_000, 1) . 'M';
-  } elseif ($number >= 1_000) {
-    return '₱' . round($number / 1_000, 1) . 'k';
-  } else {
-    return '₱' . number_format($number, 0);
-  }
+  if ($number >= 1_000_000_000) return '₱' . round($number / 1_000_000_000, 1) . 'B';
+  if ($number >= 1_000_000)     return '₱' . round($number / 1_000_000, 1) . 'M';
+  if ($number >= 1_000)         return '₱' . round($number / 1_000, 1) . 'k';
+  return '₱' . number_format($number, 0);
 }
 ?>
 <!DOCTYPE html>
@@ -46,857 +41,1036 @@ function formatCompactCurrency($number)
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS & Inventory - Purchase Orders</title>
   <link rel="stylesheet" href="assets/tailwind.min.css">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="assets/fonts.css" rel="stylesheet">
+
   <style>
-    .status-label {
-      padding: 2px 8px;
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3347;
+      --accent: #f5a623;
+      --text: #e8eaf0;
+      --text-muted: #7b82a0;
+      --success: #43d392;
+      --danger: #ff5c5c;
+      --warning: #f59e0b;
+      --info: #60a5fa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    main {
+      flex: 1;
+      padding: 24px;
+      transition: margin-left .3s ease;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, .2);
+    }
+
+    .stat-card h4 {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 4px 0 2px;
+    }
+
+    .stat-card p:first-child {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .stat-card p:last-child {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s;
+      white-space: nowrap;
+    }
+
+    .btn-primary:hover {
+      opacity: .88;
+    }
+
+    .search-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 36px 9px 38px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(245, 166, 35, .1);
+    }
+
+    .search-wrap input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1;
+      text-decoration: none;
+      transition: color .2s;
+    }
+
+    .search-clear:hover {
+      color: var(--danger);
+    }
+
+    .filter-select {
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 14px;
+      color: var(--text);
+      font-size: 13px;
+      min-width: 180px;
+    }
+
+    .filter-select:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-success {
+      background: rgba(67, 211, 146, .1);
+      border: 1px solid rgba(67, 211, 146, .3);
+      color: var(--success);
+    }
+
+    .alert-error {
+      background: rgba(255, 92, 92, .1);
+      border: 1px solid rgba(255, 92, 92, .3);
+      color: var(--danger);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table thead tr {
+      border-bottom: 1.5px solid var(--border);
+    }
+
+    .data-table thead th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .data-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .data-table tbody td {
+      padding: 13px 16px;
+    }
+
+    .status-pill {
+      padding: 3px 10px;
       font-size: 12px;
       font-weight: 600;
-      border-radius: 9999px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .status-ordered {
+      background: rgba(96, 165, 250, .18);
+      color: var(--info);
+    }
+
+    .status-received {
+      background: rgba(67, 211, 146, .18);
+      color: var(--success);
+    }
+
+    .status-cancelled {
+      background: rgba(255, 92, 92, .18);
+      color: var(--danger);
+    }
+
+    .btn-action {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      color: var(--text-muted);
+      transition: all .15s;
+    }
+
+    .btn-action:hover.view {
+      color: var(--info);
+      background: rgba(96, 165, 250, .12);
+    }
+
+    .btn-action:hover.cancel {
+      color: var(--danger);
+      background: rgba(255, 92, 92, .12);
+    }
+
+    .btn-action:hover.receive {
+      color: var(--success);
+      background: rgba(67, 211, 146, .12);
+    }
+
+    .btn-action:hover.archive {
+      color: var(--warning);
+      background: rgba(245, 166, 35, .12);
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      text-decoration: none;
+      transition: all .2s;
+    }
+
+    .page-btn:hover {
+      border-color: var(--accent);
+      background: rgba(245, 166, 35, .08);
+      color: var(--accent);
+    }
+
+    .page-btn.active {
+      background: var(--accent);
+      color: #111;
+      border-color: var(--accent);
+    }
+
+    .page-btn.disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .7);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal-box {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      width: 580px;
+      max-width: 94%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, .4);
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .item-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .item-row select {
+      flex: 1;
+    }
+
+    .item-row input[type="number"] {
+      width: 100px;
+      text-align: center;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color .15s, background .15s;
+    }
+
+    .remove-btn:hover {
+      color: var(--danger);
+      background: rgba(255, 92, 92, .1);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-cancel {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover {
+      color: var(--text);
+      border-color: #555;
+    }
+
+    .btn-confirm-ok {
+      background: var(--accent);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-confirm-ok:hover {
+      opacity: .88;
+    }
+
+    .btn-confirm-success {
+      background: var(--success);
+      color: #111;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-confirm-success:hover {
+      opacity: .88;
+    }
+
+    .btn-confirm-danger {
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-confirm-danger:hover {
+      opacity: .88;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 5px;
     }
   </style>
 </head>
 
-<body class="bg-gray-50 flex">
+<body>
 
-  <!-- Mobile Sidebar Toggle Button -->
-  <button id="sidebar-toggle" class="md:hidden p-3 fixed top-4 left-4 z-60 text-white rounded shadow-lg"
-    style="background-color: rgba(170, 170, 170, 0.82);">
-    ☰
-  </button>
-
+  <button class="mobile-toggle" id="sidebar-toggle">☰</button>
   <?php include "sidebar.php"; ?>
 
-  <!-- Main Content -->
-  <main class="flex-1 ml-0 md:ml-64 p-6">
-    <header class="mb-6">
-      <h2 class="text-2xl font-bold text-gray-800">Inventory Purchases</h2>
-    </header>
+  <main style="margin-left:240px;">
 
-    <section class="bg-white rounded-xl shadow-md p-6">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-xl font-bold text-gray-800">Purchase Orders</h3>
-          <p class="text-sm text-gray-500">Manage supplier orders and inventory procurement</p>
+    <div class="card">
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <p>Total POs</p>
+          <h4><?= count($all_purchase_orders) ?></h4>
+          <p>all time</p>
+        </div>
+        <div class="stat-card">
+          <p>Pending</p>
+          <h4 style="color:var(--info);"><?= count(array_filter($all_purchase_orders, fn($po) => $po['status'] === "Ordered")) ?></h4>
+          <p>awaiting delivery</p>
+        </div>
+        <div class="stat-card">
+          <p>Received</p>
+          <h4 style="color:var(--success);"><?= count(array_filter($all_purchase_orders, fn($po) => $po['status'] === "Received")) ?></h4>
+          <p>completed</p>
+        </div>
+        <div class="stat-card">
+          <p>Pending Value</p>
+          <?php
+          $pendingTotal = array_sum(
+            array_column(
+              array_filter($all_purchase_orders, fn($po) => $po['status'] === "Ordered"),
+              'grand_total'
+            )
+          );
+          ?>
+          <h4><?= formatCompactCurrency($pendingTotal) ?></h4>
+          <p>ordered amount</p>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Total POs</p>
-            <h4 class="text-2xl font-bold"><?= count($all_purchase_orders) ?></h4>
-            <p class="text-xs text-gray-500">all time</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Pending Orders</p>
-            <?php
-            $statusOrdered = count(array_filter($all_purchase_orders, fn($po) => $po['status'] === "Ordered"));
-            ?>
-            <h4 class="text-2xl font-bold"><?= $statusOrdered ?></h4>
-            <p class="text-xs text-gray-500">awaiting delivery</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Received</p>
-            <?php
-            $statusReceivedTotal = count(array_filter($all_purchase_orders, fn($po) => $po['status'] === "Received"));
-            ?>
-            <h4 class="text-2xl font-bold"><?= $statusReceivedTotal ?></h4>
-            <p class="text-xs text-gray-500">completed orders</p>
-          </div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p class="text-sm text-gray-500">Total Value</p>
-            <?php
-            $grandTotal = array_sum(
-              array_column(
-                array_filter($all_purchase_orders, fn($po) => $po['status'] === "Ordered"),
-                'grand_total'
-              )
-            );
-            ?>
-            <h4 class="text-2xl font-bold"><?= formatCompactCurrency($grandTotal) ?></h4>
-            <p class="text-xs text-gray-500">pending orders</p>
-          </div>
-        </div>
-      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+        <h3 style="font-size:16px; font-weight:700; margin:0;">Purchase Orders</h3>
 
-      <div class="bg-white border rounded-xl p-6">
-        <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between mb-4 gap-3">
-          <form method="GET" action="" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-            <div class="relative flex-1 max-w-md">
+        <!-- Toolbar: search + filter + buttons -->
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+
+          <!-- Search (with icon + clear) -->
+          <div class="search-wrap" style="position:relative; min-width:260px; flex:1 1 260px;">
+            <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); pointer-events:none;">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <form method="GET" id="filterForm" style="margin:0;">
               <input
                 type="text"
                 name="search"
                 id="poSearchInput"
                 value="<?= htmlspecialchars($search) ?>"
-                placeholder="Search by PO number or supplier..."
-                class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <span class="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">search</span>
-            </div>
+                placeholder="PO # or supplier..."
+                style="width:100%; padding:9px 36px 9px 38px;">
+              <?php if ($search !== ''): ?>
+                <a href="?" class="search-clear" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:16px; text-decoration:none;">×</a>
+              <?php endif; ?>
+            </form>
+          </div>
 
-            <select name="status" id="poStatusFilter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">All Statuses</option>
-              <option value="Ordered" <?= $statusFilter === 'Ordered' ? 'selected' : '' ?>>Ordered</option>
-              <option value="Received" <?= $statusFilter === 'Received' ? 'selected' : '' ?>>Received</option>
-              <option value="Cancelled" <?= $statusFilter === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
-            </select>
+          <!-- Status dropdown -->
+          <select
+            name="status"
+            class="filter-select"
+            form="filterForm"
+            style="min-width:180px;">
+            <option value="">All Statuses</option>
+            <option value="Ordered" <?= $statusFilter === 'Ordered' ? 'selected' : '' ?>>Ordered</option>
+            <option value="Received" <?= $statusFilter === 'Received' ? 'selected' : '' ?>>Received</option>
+            <option value="Cancelled" <?= $statusFilter === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
+          </select>
 
-            <?php if ($search !== '' || $statusFilter !== ''): ?>
-              <a href="?" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 whitespace-nowrap text-center">
-                Clear
-              </a>
-            <?php endif; ?>
-          </form>
+          <!-- Clear button (only when needed) -->
+          <?php if ($search !== '' || $statusFilter !== ''): ?>
+            <a href="?" class="btn-cancel" style="padding:9px 16px; font-size:13px;">Clear</a>
+          <?php endif; ?>
 
-          <button id="createPoButton" class="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap">
+          <!-- Create button -->
+          <button id="openCreatePoModal" class="btn-primary" style="padding:9px 18px;">
             + Create PO
           </button>
         </div>
+      </div>
 
-        <?php if ($search !== '' || $statusFilter !== ''): ?>
-          <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-            Showing filtered results (<?= $totalPOs ?> order<?= $totalPOs !== 1 ? 's' : '' ?>)
-            <?php if ($search !== ''): ?>
-              - Search: "<strong><?= htmlspecialchars($search) ?></strong>"
-            <?php endif; ?>
-            <?php if ($statusFilter !== ''): ?>
-              - Status: <strong><?= htmlspecialchars($statusFilter) ?></strong>
-            <?php endif; ?>
-          </div>
-        <?php endif; ?>
+      <?php if ($search || $statusFilter): ?>
+        <div style="background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.2); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+          Showing <strong style="color:var(--text)"><?= $totalPOs ?></strong> order<?= $totalPOs !== 1 ? 's' : '' ?>
+          <?php if ($search): ?> matching "<strong style="color:var(--text)"><?= htmlspecialchars($search) ?></strong>"<?php endif; ?>
+            <?php if ($statusFilter): ?> with status "<strong style="color:var(--text)"><?= htmlspecialchars($statusFilter) ?></strong>"<?php endif; ?>
+        </div>
+      <?php endif; ?>
 
-        <h4 class="text-lg font-semibold mb-2">Purchase Orders</h4>
+      <?php if (isset($_SESSION['create-success'])): ?>
+        <div class="alert alert-success"><?= $_SESSION['create-success'] ?></div>
+        <?php unset($_SESSION['create-success']); ?>
+      <?php endif; ?>
+      <?php if (isset($_SESSION['create-error'])): ?>
+        <div class="alert alert-error"><?= $_SESSION['create-error'] ?></div>
+        <?php unset($_SESSION['create-error']); ?>
+      <?php endif; ?>
 
-        <?php if (isset($_SESSION['create-success'])): ?>
-          <div id="successAlert"
-            class="mb-4 px-4 py-3 bg-green-100 border border-green-400 text-green-700 text-sm rounded-lg">
-            <?= $_SESSION['create-success'] ?>
-          </div>
-          <?php unset($_SESSION['create-success']); ?>
-        <?php endif; ?>
-
-        <?php if (isset($_SESSION['create-error'])): ?>
-          <div id="errorAlert" class="mb-4 px-4 py-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded-lg">
-            <?= $_SESSION['create-error'] ?>
-          </div>
-          <?php unset($_SESSION['create-error']); ?>
-        <?php endif; ?>
-
-        <p class="text-sm text-gray-500 mb-4">List purchase orders from suppliers.</p>
-
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO Number</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>PO Number</th>
+              <th>Supplier</th>
+              <th>Order Date</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
             <?php
-            // Count how many items (quantities) per purchase_order_id
-            $purchase_items_count = [];
+            $itemCounts = [];
             foreach ($purchase_order_items as $poi) {
-              $po_id = $poi['purchase_order_id'];
-              $qty = (int)$poi['quantity'];
-              if (!isset($purchase_items_count[$po_id])) {
-                $purchase_items_count[$po_id] = 0;
-              }
-              $purchase_items_count[$po_id] += $qty;
+              $pid = $poi['purchase_order_id'];
+              $itemCounts[$pid] = ($itemCounts[$pid] ?? 0) + (int)$poi['quantity'];
             }
             ?>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <?php if (!empty($purchaseOrders)): ?>
-                <?php foreach ($purchaseOrders as $po): ?>
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      <?= htmlspecialchars($po['po_number']) ?>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?= htmlspecialchars($po['supplier_name']) ?>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?= date('F j, Y, g:i A', strtotime($po['date'])) ?>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?php
-                      $count = $purchase_items_count[$po['purchase_order_id']] ?? 0;
-                      echo $count . ' item' . ($count !== 1 ? 's' : '');
-                      ?>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      ₱<?= number_format($po['grand_total'], 2) ?>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <?php
-                      $status = strtolower($po['status']);
-                      switch ($status) {
-                        case 'ordered':
-                          $color = 'bg-blue-100 text-blue-800';
-                          break;
-                        case 'received':
-                          $color = 'bg-green-100 text-green-800';
-                          break;
-                        case 'cancelled':
-                          $color = 'bg-red-100 text-red-800';
-                          break;
-                        default:
-                          $color = 'bg-gray-100 text-gray-800';
-                      }
-                      ?>
-                      <span class="status-label <?= $color ?> px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
-                        <?= ucfirst($status) ?>
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div class="flex space-x-2">
-                        <button class="viewPoBtn text-blue-400 hover:text-blue-600" title="View"
-                          data-po-number="<?= htmlspecialchars($po['po_number']) ?>"
-                          data-supplier="<?= htmlspecialchars($po['supplier_name']) ?>"
-                          data-date="<?= htmlspecialchars($po['date']) ?>"
-                          data-status="<?= htmlspecialchars($po['status']) ?>"
-                          data-created-by="<?= htmlspecialchars($po['created_by']) ?>"
-                          data-items='<?= json_encode($po['items']) ?>'>
-                          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                            <path fill-rule="evenodd"
-                              d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                              clip-rule="evenodd" />
+
+            <?php if (!empty($purchaseOrders)): ?>
+              <?php foreach ($purchaseOrders as $po): ?>
+                <?php
+                $status = strtolower($po['status']);
+                $pillClass = match ($status) {
+                  'ordered'  => 'status-ordered',
+                  'received' => 'status-received',
+                  'cancelled' => 'status-cancelled',
+                  default    => 'status-cancelled',
+                };
+                ?>
+                <tr>
+                  <td style="font-weight:600;"><?= htmlspecialchars($po['po_number']) ?></td>
+                  <td class="muted"><?= htmlspecialchars($po['supplier_name']) ?></td>
+                  <td class="muted"><?= date('M j, Y g:i A', strtotime($po['date'])) ?></td>
+                  <td class="muted"><?= ($itemCounts[$po['purchase_order_id']] ?? 0) ?> item<?= ($itemCounts[$po['purchase_order_id']] ?? 0) !== 1 ? 's' : '' ?></td>
+                  <td>₱<?= number_format($po['grand_total'], 2) ?></td>
+                  <td><span class="status-pill <?= $pillClass ?>"><?= ucfirst($status) ?></span></td>
+                  <td>
+                    <div style="display:flex; gap:6px;">
+                      <button class="btn-action view openViewPoModal"
+                        data-id="<?= $po['purchase_order_id'] ?>"
+                        data-number="<?= htmlspecialchars($po['po_number']) ?>"
+                        data-supplier="<?= htmlspecialchars($po['supplier_name']) ?>"
+                        data-date="<?= htmlspecialchars($po['date']) ?>"
+                        data-status="<?= htmlspecialchars($po['status']) ?>"
+                        data-creator="<?= htmlspecialchars($po['username'] ?? 'Unknown') ?>"
+                        data-items='<?= json_encode($po['items'] ?? []) ?>'
+                        title="View">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+
+                      <?php if ($status === 'ordered'): ?>
+                        <button class="btn-action cancel openCancelPoModal"
+                          data-id="<?= $po['purchase_order_id'] ?>"
+                          data-number="<?= htmlspecialchars($po['po_number']) ?>"
+                          title="Cancel">
+                          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
-                        <?php
-                        $status = $po['status'];
-                        $poId = $po['purchase_order_id'];
-                        $poNumber = htmlspecialchars($po['po_number']);
-                        ?>
 
-                        <?php if ($status !== "Cancelled" && $status !== "Received"): ?>
-                          <button class="text-red-500 hover:text-red-700 openCancelPoModal"
-                            data-id="<?= $poId ?>" data-number="<?= $poNumber ?>"
-                            title="Cancel Purchase Order">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd"
-                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                clip-rule="evenodd" />
-                            </svg>
-                          </button>
-
-                          <button class="text-green-500 hover:text-green-700 openReceivePoModal"
-                            data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
-                            title="Mark this PO as received">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd"
-                                d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z"
-                                clip-rule="evenodd" />
-                            </svg>
-                          </button>
-
-                        <?php else: ?>
-                          <button class="text-red-500 hover:text-red-700 openArchivePoModal"
-                            data-id="<?= $poId ?>" data-name="<?= $poNumber ?>"
-                            title="Archive Purchase Order">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd"
-                                d="M4 3a1 1 0 011-1h10a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1V3zm3 4h10a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1h10V5H7v3z"
-                                clip-rule="evenodd" />
-                            </svg>
-                          </button>
-                        <?php endif; ?>
-                      </div>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php else: ?>
-                <tr>
-                  <td colspan="7" class="px-6 py-10 text-center text-gray-500">
-                    No purchase orders found matching your filters.
+                        <button class="btn-action receive openReceivePoModal"
+                          data-id="<?= $po['purchase_order_id'] ?>"
+                          data-number="<?= htmlspecialchars($po['po_number']) ?>"
+                          title="Receive">
+                          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      <?php elseif ($status !== 'archived'): ?>
+                        <button class="btn-action archive openArchivePoModal"
+                          data-id="<?= $po['purchase_order_id'] ?>"
+                          data-number="<?= htmlspecialchars($po['po_number']) ?>"
+                          title="Archive">
+                          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                        </button>
+                      <?php endif; ?>
+                    </div>
                   </td>
                 </tr>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination Controls -->
-        <?php if ($totalPages > 1): ?>
-          <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
-            <div class="text-sm text-gray-700">
-              Showing page <span class="font-medium"><?= $page ?></span> of <span class="font-medium"><?= $totalPages ?></span>
-            </div>
-
-            <nav class="flex items-center space-x-1">
-              <?php
-              // Build query parameters for pagination links
-              $params = [];
-              if ($search !== '') $params[] = 'search=' . urlencode($search);
-              if ($statusFilter !== '') $params[] = 'status=' . urlencode($statusFilter);
-              $queryString = !empty($params) ? '&' . implode('&', $params) : '';
-              ?>
-
-              <!-- Previous -->
-              <?php if ($page > 1): ?>
-                <a href="?page=<?= $page - 1 ?><?= $queryString ?>"
-                  class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                  Previous
-                </a>
-              <?php else: ?>
-                <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                  Previous
-                </span>
-              <?php endif; ?>
-
-              <?php
-              $range = 2;
-              $start = max(1, $page - $range);
-              $end = min($totalPages, $page + $range);
-
-              // Show first page and ellipsis if needed
-              if ($start > 1): ?>
-                <a href="?page=1<?= $queryString ?>"
-                  class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                  1
-                </a>
-                <?php if ($start > 2): ?>
-                  <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                <?php endif; ?>
-              <?php endif; ?>
-
-              <?php
-              // Show page numbers in range
-              for ($i = $start; $i <= $end; $i++):
-                if ($i === $page): ?>
-                  <span class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">
-                    <?= $i ?>
-                  </span>
-                <?php else: ?>
-                  <a href="?page=<?= $i ?><?= $queryString ?>"
-                    class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                    <?= $i ?>
-                  </a>
-                <?php endif; ?>
-              <?php endfor; ?>
-
-              <?php
-              // Show ellipsis and last page if needed
-              if ($end < $totalPages): ?>
-                <?php if ($end < $totalPages - 1): ?>
-                  <span class="px-3 py-2 text-sm text-gray-500">...</span>
-                <?php endif; ?>
-                <a href="?page=<?= $totalPages ?><?= $queryString ?>"
-                  class="px-3 py-2 rounded-md text-sm font-medium border border-gray-300 hover:bg-gray-50">
-                  <?= $totalPages ?>
-                </a>
-              <?php endif; ?>
-
-              <!-- Next -->
-              <?php if ($page < $totalPages): ?>
-                <a href="?page=<?= $page + 1 ?><?= $queryString ?>"
-                  class="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50">
-                  Next
-                </a>
-              <?php else: ?>
-                <span class="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-                  Next
-                </span>
-              <?php endif; ?>
-            </nav>
-          </div>
-        <?php endif; ?>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr>
+                <td colspan="7" style="text-align:center; padding:60px 20px; color:var(--text-muted); font-size:15px;">
+                  <?= $search || $statusFilter ? 'No matching purchase orders.' : 'No purchase orders found.' ?>
+                </td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
       </div>
-    </section>
+
+      <?php if ($totalPages > 1):
+        $q = http_build_query(array_filter([
+          'search' => $search ?: null,
+          'status' => $statusFilter ?: null,
+        ]));
+        $q = $q ? '&' . $q : '';
+      ?>
+        <div class="pagination">
+          <div style="font-size:12px; color:var(--text-muted);">
+            Page <strong style="color:var(--text)"><?= $page ?></strong> of <strong style="color:var(--text)"><?= $totalPages ?></strong>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+            <?php if ($page > 1): ?>
+              <a href="?page=<?= $page - 1 ?><?= $q ?>" class="page-btn">‹ Prev</a>
+            <?php else: ?>
+              <span class="page-btn disabled">‹ Prev</span>
+            <?php endif; ?>
+
+            <?php
+            $range = 2;
+            $start = max(1, $page - $range);
+            $end   = min($totalPages, $page + $range);
+            if ($start > 1): ?>
+              <a href="?page=1<?= $q ?>" class="page-btn">1</a>
+              <?php if ($start > 2): ?><span class="page-ellipsis">…</span><?php endif; ?>
+            <?php endif; ?>
+
+            <?php for ($i = $start; $i <= $end; $i++): ?>
+              <?php if ($i === $page): ?>
+                <span class="page-btn active"><?= $i ?></span>
+              <?php else: ?>
+                <a href="?page=<?= $i ?><?= $q ?>" class="page-btn"><?= $i ?></a>
+              <?php endif; ?>
+            <?php endfor; ?>
+
+            <?php if ($end < $totalPages): ?>
+              <?php if ($end < $totalPages - 1): ?><span class="page-ellipsis">…</span><?php endif; ?>
+              <a href="?page=<?= $totalPages ?><?= $q ?>" class="page-btn"><?= $totalPages ?></a>
+            <?php endif; ?>
+
+            <?php if ($page < $totalPages): ?>
+              <a href="?page=<?= $page + 1 ?><?= $q ?>" class="page-btn">Next ›</a>
+            <?php else: ?>
+              <span class="page-btn disabled">Next ›</span>
+            <?php endif; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+    </div>
   </main>
 
-  <!-- Purchase Orders Modal -->
-  <div id="createPoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-xl p-6 shadow-lg">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900">Create Purchase Order</h3>
-          <p class="text-sm text-gray-500">Create a new purchase order for supplier</p>
-        </div>
-        <button id="closeCreatePoModal" class="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
-      </div>
+  <!-- Create PO Modal -->
+  <div id="createPoModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Create Purchase Order</h3>
 
-      <form method="POST" class="space-y-4" id="purchaseOrderForm">
-        <input type="hidden" name="status" value="Ordered" />
-        <div>
-          <label for="supplier" class="block text-sm font-medium text-gray-700">Supplier *</label>
-          <select id="supplier" name="supplier_id" required
-            class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200">
+      <form method="POST" id="purchaseOrderForm">
+        <input type="hidden" name="status" value="Ordered">
+
+        <div class="form-group">
+          <label>Supplier *</label>
+          <select name="supplier_id" required class="form-select">
             <option value="">Select supplier</option>
-            <?php foreach ($suppliers as $sp): ?>
-              <option value="<?= $sp['supplier_id'] ?>"><?= htmlspecialchars($sp['supplier_name']) ?></option>
+            <?php foreach ($suppliers as $s): ?>
+              <option value="<?= $s['supplier_id'] ?>"><?= htmlspecialchars($s['supplier_name']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Items</label>
-          <div id="itemsContainer" class="space-y-3">
-            <div class="flex space-x-3 items-center">
-              <select name="item_id[]" required
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+        <div class="form-group">
+          <label>Items</label>
+          <div id="itemsContainer">
+            <div class="item-row">
+              <select name="item_id[]" required class="form-select">
                 <option value="">Select item</option>
-                <?php foreach ($items as $item): ?>
-                  <option value="<?= $item['item_id'] ?>"><?= htmlspecialchars($item['item_name'], ENT_QUOTES) ?></option>
+                <?php foreach ($items as $it): ?>
+                  <option value="<?= $it['item_id'] ?>"><?= htmlspecialchars($it['item_name']) ?></option>
                 <?php endforeach; ?>
               </select>
-
-              <input type="number" name="quantity[]" min="1" required value="1"
-                class="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-
-              <button type="button"
-                class="removeItemBtn text-gray-400 hover:text-red-600 text-2xl font-bold leading-none focus:outline-none focus:ring-2 focus:ring-red-500 rounded"
-                aria-label="Remove item">&times;</button>
+              <input type="number" name="quantity[]" min="1" required value="1" class="form-input">
+              <button type="button" class="remove-btn">×</button>
             </div>
           </div>
-          <button type="button" id="addItemBtn"
-            class="mt-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">+ Add Item</button>
+          <button type="button" id="addItemRow" class="btn-cancel mt-3 px-4 py-2 text-sm">+ Add Item</button>
         </div>
-        <div class="flex justify-end space-x-2 pt-4">
-          <button type="button" id="cancelCreatePoModal"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
-          <button type="submit" name="create_purchase_order" class="px-4 py-2 bg-black text-white rounded hover:bg-gray-800">Create Purchase
-            Order</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
-  <!-- Receive Purchase Order Modal -->
-  <div id="receivePoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-sm p-6">
-      <h3 class="text-lg font-semibold mb-4 text-green-600">Confirm Delivery</h3>
-      <p class="mb-4 text-sm text-gray-700">
-        Has <span id="receive_po_number" class="font-bold text-gray-900"></span> been received from the supplier?<br>
-        Confirming this will update the inventory based on the delivered items.
-      </p>
-
-      <form method="POST">
-        <input type="hidden" name="receive_po_id" id="receive_po_id">
-        <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelReceiveModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button type="submit" name="receive_po" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-            Mark as Received
-          </button>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="cancelCreatePo">Cancel</button>
+          <button type="submit" name="create_purchase_order" class="btn-confirm-ok">Create PO</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- View PO Modal -->
-  <div id="viewPoModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white p-6 rounded shadow-lg w-full max-w-3xl">
-      <div class="flex justify-between items-center mb-4">
-        <h2 id="modalPoNumber" class="text-lg font-bold"></h2>
-        <button id="closeViewPoModal" class="text-gray-500 hover:text-black">&times;</button>
+  <div id="viewPoModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:720px;">
+      <h3 id="viewPoTitle"></h3>
+
+      <div style="margin:16px 0; font-size:13.5px; line-height:1.5;">
+        <div><strong>PO Number:</strong> <span id="viewPoNumber"></span></div>
+        <div><strong>Date:</strong> <span id="viewPoDate"></span></div>
+        <div><strong>Supplier:</strong> <span id="viewPoSupplier"></span></div>
+        <div><strong>Status:</strong> <span id="viewPoStatus" class="status-pill"></span></div>
+        <div><strong>Created by:</strong> <span id="viewPoCreator"></span></div>
       </div>
-      <div class="mb-4">
-        <p><strong>PO Number:</strong> <span id="modalPoNum"></span></p>
-        <p><strong>Date:</strong> <span id="modalOrderDate"></span></p>
-        <p><strong>Supplier:</strong> <span id="modalSupplier"></span></p>
-        <p><strong>Status:</strong> <span id="modalStatus"
-            class="inline-block px-2 py-0.5 rounded text-xs font-medium"></span></p>
-        <p><strong>Created by:</strong> <span id="modalCreatedBy"></span></p>
+
+      <div style="overflow-x:auto; margin:20px 0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Quantity</th>
+              <th>Unit Cost</th>
+              <th>Line Total</th>
+            </tr>
+          </thead>
+          <tbody id="viewPoItems"></tbody>
+        </table>
       </div>
-      <table class="w-full text-sm table-auto border">
-        <thead>
-          <tr>
-            <th class="px-4 py-2 text-left border">Item</th>
-            <th class="px-4 py-2 text-left border">Quantity</th>
-            <th class="px-4 py-2 text-left border">Unit Cost</th>
-            <th class="px-4 py-2 text-left border">Line Total</th>
-          </tr>
-        </thead>
-        <tbody id="modalItemsTable">
-        </tbody>
-      </table>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="closeViewPo">Close</button>
+      </div>
     </div>
   </div>
 
-  <!-- Cancel Purchase Order Modal -->
-  <div id="cancelPoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-sm p-6">
-      <h3 class="text-lg font-semibold mb-4 text-red-600">Cancel Purchase Order</h3>
-      <p class="mb-4 text-sm text-gray-700">
-        Are you sure you want to cancel purchase order <span id="cancel_po_number"
-          class="font-bold text-gray-900"></span>?
-        This action cannot be undone.
+  <!-- Cancel Confirmation Modal -->
+  <div id="cancelPoModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:420px;">
+      <h3>Cancel Purchase Order</h3>
+      <p style="margin:20px 0;">
+        Are you sure you want to cancel PO <strong id="cancelPoNumber" style="color:var(--text)"></strong>?<br>
+        This cannot be undone.
       </p>
-
       <form method="POST">
-        <input type="hidden" name="cancel_po_id" id="cancel_po_id">
-        <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelCancelModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button type="submit" name="cancel_po" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-            Confirm Cancel
-          </button>
+        <input type="hidden" name="cancel_po_id" id="cancelPoId">
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="closeCancelPo">Cancel</button>
+          <button type="submit" name="cancel_po" class="btn-confirm-danger">Confirm Cancel</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Archive Purchase Order Modal -->
-  <div id="archivePurchaseOrderModal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="bg-white rounded-lg w-full max-w-sm p-6">
-      <h3 class="text-lg font-semibold mb-4 text-yellow-600">Archive Purchase Order</h3>
-      <p class="mb-4 text-sm text-gray-700">
-        Are you sure you want to archive <span id="archive_po_number" class="font-bold"></span>?
-        This action can be undone.
+  <!-- Receive Confirmation Modal -->
+  <div id="receivePoModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:420px;">
+      <h3>Confirm Receipt</h3>
+      <p style="margin:20px 0;">
+        Has PO <strong id="receivePoNumber" style="color:var(--text)"></strong> been fully received?<br>
+        This will update stock levels.
       </p>
-
       <form method="POST">
-        <input type="hidden" name="purchase_order_id" id="archive_po_id">
-        <div class="flex justify-end space-x-2">
-          <button type="button" id="cancelArchivePoModalBtn"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-            Cancel
-          </button>
-          <button type="submit" name="archive_purchase_order"
-            class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
-            Confirm Archive
-          </button>
+        <input type="hidden" name="receive_po_id" id="receivePoId">
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="closeReceivePo">Cancel</button>
+          <button type="submit" name="receive_po" class="btn-confirm-success">Mark as Received</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- BugerBar Toggle -->
+  <!-- Archive Confirmation Modal -->
+  <div id="archivePoModal" class="modal-overlay">
+    <div class="modal-box" style="max-width:420px;">
+      <h3>Archive Purchase Order</h3>
+      <p style="margin:20px 0;">
+        Archive PO <strong id="archivePoNumber" style="color:var(--text)"></strong>?<br>
+        This can be undone later.
+      </p>
+      <form method="POST">
+        <input type="hidden" name="purchase_order_id" id="archivePoId">
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="closeArchivePo">Cancel</button>
+          <button type="submit" name="archive_purchase_order" class="btn-confirm-warning">Confirm Archive</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
-    const sidebar = document.getElementById('mobile-sidebar');
-    const toggleBtn = document.getElementById('sidebar-toggle');
-
-    toggleBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('-translate-x-full');
-    });
-  </script>
-
-  <!-- BugerBar Close -->
-  <script>
-    const closeBtn = document.getElementById('sidebar-close');
-
-    closeBtn.addEventListener('click', () => {
-      sidebar.classList.add('-translate-x-full');
-    });
-  </script>
-
-  <!-- Save scroll before reload/submit -->
-  <script>
-    window.addEventListener('beforeunload', () => {
-      sessionStorage.setItem('scrollPos', window.scrollY);
-    });
-
-    window.addEventListener('load', () => {
-      const scrollPos = sessionStorage.getItem('scrollPos');
-      if (scrollPos) {
-        window.scrollTo(0, parseInt(scrollPos));
-        sessionStorage.removeItem('scrollPos');
-      }
-    });
-  </script>
-
-  <!-- Unset Alert -->
-  <script>
-    const successAlert = document.getElementById('successAlert');
-    if (successAlert) {
-      setTimeout(() => {
-        successAlert.style.display = 'none';
-        fetch('unset_alert.php');
-      }, 3000);
+    // Modal helpers
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
     }
 
-    const errorAlert = document.getElementById('errorAlert');
-    if (errorAlert) {
-      setTimeout(() => {
-        errorAlert.style.display = 'none';
-        fetch('unset_alert.php');
-      }, 3000);
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
     }
-  </script>
 
-  <!-- Auto-submit search form after user stops typing -->
-  <script>
-    let searchTimeout;
-    const searchInput = document.getElementById('poSearchInput');
-    const searchForm = searchInput ? searchInput.closest('form') : null;
-
-    if (searchInput && searchForm) {
-      searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          searchForm.submit();
-        }, 500);
+    document.querySelectorAll('.modal-overlay').forEach(m => {
+      m.addEventListener('click', e => {
+        if (e.target === m) closeModal(m.id);
       });
-    }
+    });
 
-    // Auto-submit when changing status filter
-    const statusFilter = document.getElementById('poStatusFilter');
-    if (statusFilter && searchForm) {
-      statusFilter.addEventListener('change', function() {
-        searchForm.submit();
-      });
-    }
-  </script>
+    // Create PO
+    document.getElementById('openCreatePoModal')?.addEventListener('click', () => openModal('createPoModal'));
+    document.getElementById('cancelCreatePo')?.addEventListener('click', () => closeModal('createPoModal'));
 
-  <!-- Create Purchase Orders Script -->
-  <script>
-    const createPoButton = document.getElementById('createPoButton');
-    const createPoModal = document.getElementById('createPoModal');
-    const closeCreatePoModal = document.getElementById('closeCreatePoModal');
-    const cancelCreatePoModal = document.getElementById('cancelCreatePoModal');
-    const addItemBtn = document.getElementById('addItemBtn');
+    // Add/remove item rows
     const itemsContainer = document.getElementById('itemsContainer');
+    document.getElementById('addItemRow')?.addEventListener('click', () => {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      row.innerHTML = `
+                <select name="item_id[]" required class="form-select">
+                    <option value="">Select item</option>
+                    <?php foreach ($items as $it): ?>
+                        <option value="<?= $it['item_id'] ?>"><?= htmlspecialchars($it['item_name'], ENT_QUOTES) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="number" name="quantity[]" min="1" required value="1" class="form-input">
+                <button type="button" class="remove-btn">×</button>
+            `;
+      itemsContainer.appendChild(row);
 
-    createPoButton.addEventListener('click', () => {
-      createPoModal.classList.remove('hidden');
+      row.querySelector('.remove-btn').onclick = () => row.remove();
     });
 
-    closeCreatePoModal.addEventListener('click', () => {
-      createPoModal.classList.add('hidden');
-    });
-    cancelCreatePoModal.addEventListener('click', () => {
-      createPoModal.classList.add('hidden');
-    });
-    createPoModal.addEventListener('click', (e) => {
-      if (e.target === createPoModal) {
-        createPoModal.classList.add('hidden');
-      }
-    });
+    // View PO
+    document.querySelectorAll('.openViewPoModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const data = btn.dataset;
+        document.getElementById('viewPoTitle').textContent = `PO ${data.number} - ${data.supplier}`;
+        document.getElementById('viewPoNumber').textContent = data.number;
+        document.getElementById('viewPoDate').textContent = new Date(data.date).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+        document.getElementById('viewPoSupplier').textContent = data.supplier;
 
-    // Add new item row
-    addItemBtn.addEventListener('click', () => {
-      const newItem = document.createElement('div');
-      newItem.classList.add('flex', 'space-x-3', 'items-center');
-      newItem.innerHTML = `
-    <select name="item_id[]" required
-      class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-      <option value="">Select item</option>
-      <?php foreach ($items as $item): ?>
-      <option value="<?= $item['item_id'] ?>"><?= htmlspecialchars($item['item_name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-    <input type="number" name="quantity[]" min="1" required value="1"
-      class="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-    <button type="button" class="removeItemBtn text-gray-400 hover:text-red-600 text-2xl font-bold leading-none focus:outline-none focus:ring-2 focus:ring-red-500 rounded" aria-label="Remove item">&times;</button>
-  `;
-      itemsContainer.appendChild(newItem);
+        const statusEl = document.getElementById('viewPoStatus');
+        statusEl.textContent = data.status;
+        statusEl.className = 'status-pill ' + {
+          'Ordered': 'status-ordered',
+          'Received': 'status-received',
+          'Cancelled': 'status-cancelled'
+        } [data.status] || '';
 
-      // Attach remove event to the new remove button
-      newItem.querySelector('.removeItemBtn').addEventListener('click', () => {
-        newItem.remove();
-      });
-    });
+        document.getElementById('viewPoCreator').textContent = data.creator;
 
-    // Remove item row
-    document.querySelectorAll('.removeItemBtn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.target.closest('div').remove();
-      });
-    });
-  </script>
-
-  <!-- View Purchase Orders Script -->
-  <script>
-    const viewPoModal = document.getElementById('viewPoModal');
-
-    function formatDateTime(dateString) {
-      const date = new Date(dateString);
-      if (isNaN(date)) return 'Invalid date';
-
-      return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    }
-
-    document.querySelectorAll('.viewPoBtn').forEach(button => {
-      button.addEventListener('click', () => {
-        const poNumber = button.dataset.poNumber;
-        const supplier = button.dataset.supplier;
-        const date = button.dataset.date;
-        const status = button.dataset.status;
-        const createdBy = button.dataset.createdBy;
+        const tbody = document.getElementById('viewPoItems');
+        tbody.innerHTML = '';
 
         let items = [];
         try {
-          items = JSON.parse(button.dataset.items || '[]');
-        } catch (e) {
-          console.error('Failed to parse items JSON:', e);
-        }
+          items = JSON.parse(data.items || '[]');
+        } catch (e) {}
 
-        document.getElementById('modalPoNumber').innerText = `${poNumber} - ${supplier}`;
-        document.getElementById('modalPoNum').innerText = poNumber;
-        document.getElementById('modalOrderDate').innerText = formatDateTime(date);
-        document.getElementById('modalSupplier').innerText = supplier;
-        document.getElementById('modalStatus').innerText = status;
-        document.getElementById('modalCreatedBy').innerText = createdBy;
-
-        const badge = document.getElementById('modalStatus');
-        badge.className = 'inline-block px-2 py-0.5 rounded text-xs font-medium';
-        if (status === 'Received') {
-          badge.classList.add('bg-green-100', 'text-green-800');
-        } else if (status === 'Cancelled') {
-          badge.classList.add('bg-red-100', 'text-red-800');
+        if (!items.length) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">No items</td></tr>';
         } else {
-          badge.classList.add('bg-blue-100', 'text-blue-800');
-        }
-
-        function numberWithCommas(x) {
-          return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        }
-
-        const tbody = document.getElementById('modalItemsTable');
-        tbody.innerHTML = '';
-
-        if (items.length === 0) {
-          const emptyRow = `
-          <tr>
-            <td colspan="4" class="px-4 py-2 text-center text-gray-500">No items found.</td>
-          </tr>
-        `;
-          tbody.insertAdjacentHTML('beforeend', emptyRow);
-        } else {
-          items.forEach(item => {
-            const row = `
-            <tr>
-              <td class="px-4 py-2 border">${item.item_name}</td>
-              <td class="px-4 py-2 border">${numberWithCommas(item.quantity)}</td>
-              <td class="px-4 py-2 border">₱${numberWithCommas(parseFloat(item.unit_cost).toFixed(2))}</td>
-              <td class="px-4 py-2 border">₱${numberWithCommas(parseFloat(item.line_total).toFixed(2))}</td>
-            </tr>
-          `;
-            tbody.insertAdjacentHTML('beforeend', row);
+          items.forEach(it => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                            <td>${it.item_name}</td>
+                            <td>${Number(it.quantity).toLocaleString()}</td>
+                            <td>₱${Number(it.unit_cost).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                            <td>₱${Number(it.line_total).toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                        `;
+            tbody.appendChild(tr);
           });
         }
 
-        viewPoModal.classList.remove('hidden');
+        openModal('viewPoModal');
       });
     });
+    document.getElementById('closeViewPo')?.addEventListener('click', () => closeModal('viewPoModal'));
 
-    document.getElementById('closeViewPoModal').addEventListener('click', () => {
-      viewPoModal.classList.add('hidden');
+    // Cancel PO
+    document.querySelectorAll('.openCancelPoModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('cancelPoId').value = btn.dataset.id;
+        document.getElementById('cancelPoNumber').textContent = btn.dataset.number;
+        openModal('cancelPoModal');
+      });
     });
+    document.getElementById('closeCancelPo')?.addEventListener('click', () => closeModal('cancelPoModal'));
 
-    viewPoModal.addEventListener('click', (e) => {
-      if (e.target === viewPoModal) {
-        viewPoModal.classList.add('hidden');
-      }
+    // Receive PO
+    document.querySelectorAll('.openReceivePoModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('receivePoId').value = btn.dataset.id;
+        document.getElementById('receivePoNumber').textContent = btn.dataset.number;
+        openModal('receivePoModal');
+      });
+    });
+    document.getElementById('closeReceivePo')?.addEventListener('click', () => closeModal('receivePoModal'));
+
+    // Archive PO
+    document.querySelectorAll('.openArchivePoModal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('archivePoId').value = btn.dataset.id;
+        document.getElementById('archivePoNumber').textContent = btn.dataset.number;
+        openModal('archivePoModal');
+      });
+    });
+    document.getElementById('closeArchivePo')?.addEventListener('click', () => closeModal('archivePoModal'));
+
+    // Live filters
+    let timeout;
+    document.getElementById('poSearchInput')?.addEventListener('input', function() {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => this.closest('form').submit(), 450);
+    });
+    document.querySelector('.filter-select')?.addEventListener('change', e => e.target.closest('form').submit());
+
+    // Sidebar sync
+    function syncMargin() {
+      const collapsed = document.getElementById('main-sidebar')?.classList.contains('collapsed');
+      document.querySelector('main').style.marginLeft = collapsed ? '64px' : '240px';
+    }
+    document.getElementById('sidebarCollapseBtn')?.addEventListener('click', () => setTimeout(syncMargin, 80));
+    syncMargin();
+
+    // Auto-dismiss alerts
+    document.querySelectorAll('.alert').forEach(el => {
+      setTimeout(() => el.style.opacity = '0', 3200);
+      setTimeout(() => el.remove(), 4000);
     });
   </script>
 
-  <!-- Receive Purchase Orders Script -->
-  <script>
-    const receiveButtons = document.querySelectorAll('.openReceivePoModal');
-    const receiveModal = document.getElementById('receivePoModal');
-    const receivePoId = document.getElementById('receive_po_id');
-    const receivePoNumber = document.getElementById('receive_po_number');
-    const cancelReceiveBtn = document.getElementById('cancelReceiveModalBtn');
-
-    receiveButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const id = button.getAttribute('data-id');
-        const poNumber = button.getAttribute('data-name');
-
-        receivePoId.value = id;
-        receivePoNumber.textContent = poNumber;
-
-        receiveModal.classList.remove('hidden');
-      });
-    });
-
-    cancelReceiveBtn.addEventListener('click', () => {
-      receiveModal.classList.add('hidden');
-    });
-
-    window.addEventListener('click', (e) => {
-      if (e.target === receiveModal) {
-        receiveModal.classList.add('hidden');
-      }
-    });
-  </script>
-
-  <!-- Cancel Purchase Orders Script -->
-  <script>
-    const cancelButtons = document.querySelectorAll('.openCancelPoModal');
-    const cancelModal = document.getElementById('cancelPoModal');
-    const cancelPoId = document.getElementById('cancel_po_id');
-    const cancelPoNumber = document.getElementById('cancel_po_number');
-    const cancelCancelBtn = document.getElementById('cancelCancelModalBtn');
-
-    cancelButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const id = button.getAttribute('data-id');
-        const number = button.getAttribute('data-number');
-
-        cancelPoId.value = id;
-        cancelPoNumber.textContent = number;
-
-        cancelModal.classList.remove('hidden');
-      });
-    });
-
-    cancelCancelBtn.addEventListener('click', () => {
-      cancelModal.classList.add('hidden');
-    });
-
-    window.addEventListener('click', (e) => {
-      if (e.target === cancelModal) {
-        cancelModal.classList.add('hidden');
-      }
-    });
-  </script>
-
-  <!-- Archive Purchase Orders Script -->
-  <script>
-    const archivePoButtons = document.querySelectorAll('.openArchivePoModal');
-    const archivePoModal = document.getElementById('archivePurchaseOrderModal');
-    const archivePoIdInput = document.getElementById('archive_po_id');
-    const archivePoNumberSpan = document.getElementById('archive_po_number');
-    const cancelArchivePoBtn = document.getElementById('cancelArchivePoModalBtn');
-
-    archivePoButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const id = button.getAttribute('data-id');
-        const poNumber = button.getAttribute('data-name');
-
-        archivePoIdInput.value = id;
-        archivePoNumberSpan.textContent = poNumber;
-
-        archivePoModal.classList.remove('hidden');
-      });
-    });
-
-    cancelArchivePoBtn.addEventListener('click', () => {
-      archivePoModal.classList.add('hidden');
-    });
-
-    window.addEventListener('click', (e) => {
-      if (e.target === archivePoModal) {
-        archivePoModal.classList.add('hidden');
-      }
-    });
-  </script>
 </body>
 
 </html>
